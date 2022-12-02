@@ -11,8 +11,7 @@ impl EncodedVectorStorage {
     pub fn new(
         orig_data: Box<dyn Iterator<Item = &[f32]> + '_>,
         chunks: &[usize],
-    ) -> Result<EncodedVectorStorage, String>
-    {
+    ) -> Result<EncodedVectorStorage, String> {
         let separated_data = Self::separate_data(orig_data, chunks)?;
 
         let vectors_count = separated_data[0].len();
@@ -85,10 +84,7 @@ impl EncodedVectorStorage {
         Ok(separated)
     }
 
-    pub fn get_centroids(
-        points: Vec<Vec<f32>>,
-    ) -> Result<(Vec<Vec<f32>>, Vec<usize>), String>
-    {
+    pub fn get_centroids(points: Vec<Vec<f32>>) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
         let vectors_count = points.len();
         let dim = points[0].len();
         let mut chunk_data = ndarray::Array2::<f32>::default((vectors_count, dim));
@@ -97,9 +93,9 @@ impl EncodedVectorStorage {
                 *col = points[i][j];
             }
         }
-    
+
         let (chunk_centroids, indexes) = rkm::kmeans_lloyd(&chunk_data.view(), CENTROIDS_COUNT);
-    
+
         let mut centroids = vec![Vec::new(); CENTROIDS_COUNT];
         for (i, row) in chunk_centroids.axis_iter(ndarray::Axis(0)).enumerate() {
             for col in &row {
@@ -107,7 +103,7 @@ impl EncodedVectorStorage {
             }
         }
         Ok((centroids, indexes))
-    }    
+    }
 
     fn add_encoded_value(
         data: &mut [u8],

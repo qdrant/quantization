@@ -39,11 +39,9 @@ fn knn_test() {
 
     let timer = std::time::Instant::now();
     let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
-    let encoder = EncodedVectorStorage::new(
-        Box::new(vector_data.iter().map(|v| v.as_slice())),
-        &chunks,
-    )
-    .unwrap();
+    let encoder =
+        EncodedVectorStorage::new(Box::new(vector_data.iter().map(|v| v.as_slice())), &chunks)
+            .unwrap();
     println!("encoding time: {}ms", timer.elapsed().as_millis());
 
     let queries_count = 10;

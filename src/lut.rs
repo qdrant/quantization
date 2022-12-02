@@ -18,8 +18,11 @@ impl Lut {
         for (i, chunk_centroids) in encoder.centroids.iter().enumerate() {
             let query_chunk = &query[start..start + encoder.chunks[i]];
             start += encoder.chunks[i];
-            let distances: Vec<f32> = chunk_centroids.iter().map(|c| metric(c, query_chunk)).collect();
-            
+            let distances: Vec<f32> = chunk_centroids
+                .iter()
+                .map(|c| metric(c, query_chunk))
+                .collect();
+
             let mut min = f32::MAX;
             let mut max = f32::MIN;
             for &d in &distances {
@@ -33,7 +36,10 @@ impl Lut {
 
             let alpha = (max - min) / 255.0;
             let offset = min;
-            let byte_distances = distances.iter().map(|&d| ((d - offset) / alpha) as u8).collect::<Vec<_>>();
+            let byte_distances = distances
+                .iter()
+                .map(|&d| ((d - offset) / alpha) as u8)
+                .collect::<Vec<_>>();
 
             centroid_distances.extend_from_slice(&byte_distances);
             alphas.push(alpha);
@@ -59,7 +65,8 @@ impl Lut {
                 let c2 = v % 16;
                 sum += *alphas_ptr * self.centroid_distances[32 * chunk_pair + c1 as usize] as f32;
                 alphas_ptr = alphas_ptr.add(1);
-                sum += *alphas_ptr * self.centroid_distances[32 * chunk_pair + 16 + c2 as usize] as f32;
+                sum += *alphas_ptr
+                    * self.centroid_distances[32 * chunk_pair + 16 + c2 as usize] as f32;
                 alphas_ptr = alphas_ptr.add(1);
             }
             sum

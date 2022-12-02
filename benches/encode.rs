@@ -18,14 +18,11 @@ fn encode_bench(c: &mut Criterion) {
     let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
 
     group.bench_function("encode", |b| {
-        b.iter(|| {
-            EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks)
-        });
+        b.iter(|| EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks));
     });
 
     let encoder =
-        EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks)
-            .unwrap();
+        EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks).unwrap();
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
     group.bench_function("score all quantized", |b| {
