@@ -6,7 +6,7 @@ use rand::Rng;
 fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
-    let vectors_count = 1_000;
+    let vectors_count = 100_000;
     let vector_dim = 64;
     let mut rng = rand::thread_rng();
     let mut list: Vec<Vec<f32>> = Vec::new();

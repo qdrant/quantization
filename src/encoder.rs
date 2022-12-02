@@ -15,11 +15,7 @@ impl EncodedVectorStorage {
     {
         let separated_data = Self::separate_data(orig_data, chunks)?;
 
-        let vectors_count = separated_data
-            .iter()
-            .zip(chunks.iter().cloned())
-            .map(|(chunk_data, chunk_size)| chunk_data.len() / chunk_size)
-            .fold(0, |acc, x| std::cmp::max(acc, x));
+        let vectors_count = separated_data[0].len();
 
         if chunks.len() % 2 == 1 {
             return Err("chunks.len() must be even".to_string());
@@ -121,7 +117,7 @@ impl EncodedVectorStorage {
         centroid_index: u8,
     ) {
         let byte_index = vector_index * chunks_count / 2 + chunk_index / 2;
-        let bit_index = (chunk_index % 2) * 4;
+        let bit_index = (1 - (chunk_index % 2)) * 4;
         data[byte_index] |= (centroid_index as u8) << bit_index;
     }
 }

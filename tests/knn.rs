@@ -37,12 +37,14 @@ fn knn_test() {
         vector_data.push(vector);
     }
 
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
+    let timer = std::time::Instant::now();
+    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
     let encoder = EncodedVectorStorage::new(
         Box::new(vector_data.iter().map(|v| v.as_slice())),
         &chunks,
     )
     .unwrap();
+    println!("encoding time: {}ms", timer.elapsed().as_millis());
 
     let queries_count = 10;
 
@@ -81,10 +83,10 @@ fn knn_test() {
         (vector_dim * vectors_count * std::mem::size_of::<f32>()) as f32
             / encoder.data_size() as f32
     );
-    println!("same_10: {}%", same_10);
-    println!("same_30: {}%", same_30);
-    println!("same_100: {}%", same_100);
-    assert!(same_10 > 0.0);
-    assert!(same_30 > 0.0);
-    assert!(same_100 > 0.0);
+    println!("same_10: {}", same_10);
+    println!("same_30: {}", same_30);
+    println!("same_100: {}", same_100);
+    assert!(same_10 > 6.0);
+    assert!(same_30 > 8.0);
+    assert!(same_100 > 9.5);
 }
