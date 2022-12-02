@@ -10,8 +10,13 @@ rand = "0.8.5"
 
 [dependencies]
 rkm = "0.8.1"
+rand = "0.8.5"
 ndarray = "0.12.1"
 
 [[bench]]
 name = "encode"
 harness = false
+
+[[bin]]
+name = "demo"
+path = "src/demo.rs"
