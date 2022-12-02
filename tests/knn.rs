@@ -2,7 +2,12 @@ use quantization::{encoder::EncodedVectorStorage, lut::Lut};
 use rand::Rng;
 
 fn metric(a: &[f32], b: &[f32]) -> f32 {
-    a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>()
+    assert!(a.len() == b.len());
+    let mut sum = 0.0;
+    for i in 0..a.len() {
+        sum += a[i] * b[i];
+    }
+    sum
 }
 
 fn knn(scores: &[(usize, f32)], k: usize) -> Vec<usize> {
@@ -23,7 +28,7 @@ fn same_count(a: &[usize], b: &[usize]) -> usize {
 
 #[test]
 fn knn_test() {
-    let vectors_count = 1000;
+    let vectors_count = 1_000;
     let vector_dim = 64;
     let mut rng = rand::thread_rng();
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
@@ -32,11 +37,10 @@ fn knn_test() {
         vector_data.push(vector);
     }
 
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
+    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
     let encoder = EncodedVectorStorage::new(
         Box::new(vector_data.iter().map(|v| v.as_slice())),
         &chunks,
-        metric,
     )
     .unwrap();
 
@@ -77,9 +81,9 @@ fn knn_test() {
         (vector_dim * vectors_count * std::mem::size_of::<f32>()) as f32
             / encoder.data_size() as f32
     );
-    println!("same_10: {}", same_10);
-    println!("same_30: {}", same_30);
-    println!("same_100: {}", same_100);
+    println!("same_10: {}%", same_10);
+    println!("same_30: {}%", same_30);
+    println!("same_100: {}%", same_100);
     assert!(same_10 > 0.0);
     assert!(same_30 > 0.0);
     assert!(same_100 > 0.0);

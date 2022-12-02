@@ -1,9 +1,9 @@
-use crate::encoder::EncodedVectorStorage;
+use crate::{encoder::EncodedVectorStorage, CENTROIDS_COUNT};
 
 pub struct Lut {
-    pub(crate) dist: Vec<u8>,
+    pub(crate) centroid_distances: Vec<u8>,
     pub(crate) alphas: Vec<f32>,
-    pub(crate) offset: f32,
+    pub(crate) total_offset: f32,
 }
 
 impl Lut {
@@ -11,32 +11,55 @@ impl Lut {
     where
         F: Fn(&[f32], &[f32]) -> f32,
     {
-        let mut dist = vec![0; encoder.centroids.len()];
-        for (i, centroid) in encoder.centroids.iter().enumerate() {
-            let d = metric(query, centroid) / encoder.alphas[i % 16];
-            dist[i] = d as u8;
+        let mut centroid_distances = Vec::with_capacity(CENTROIDS_COUNT * encoder.centroids.len());
+        let mut alphas = Vec::with_capacity(encoder.centroids.len());
+        let mut total_offset = 0.0;
+        let mut start = 0;
+        for (i, chunk_centroids) in encoder.centroids.iter().enumerate() {
+            let query_chunk = &query[start..start + encoder.chunks[i]];
+            start += encoder.chunks[i];
+            let distances: Vec<f32> = chunk_centroids.iter().map(|c| metric(c, query_chunk)).collect();
+            
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+            for &d in &distances {
+                if d < min {
+                    min = d;
+                }
+                if d > max {
+                    max = d;
+                }
+            }
+
+            let alpha = (max - min) / 255.0;
+            let offset = min;
+            let byte_distances = distances.iter().map(|&d| ((d - offset) / alpha) as u8).collect::<Vec<_>>();
+
+            centroid_distances.extend_from_slice(&byte_distances);
+            alphas.push(alpha);
+            total_offset += offset;
         }
         Lut {
-            dist,
-            alphas: encoder.alphas.clone(),
-            offset: encoder.offsets.iter().fold(0.0, |a, &b| a + b),
+            centroid_distances,
+            alphas,
+            total_offset,
         }
     }
 
     #[inline]
     pub fn dist(&self, v: &[u8]) -> f32 {
         unsafe {
-            let mut sum = self.offset;
+            let mut sum = self.total_offset;
             let mut ptr = v.as_ptr();
             let mut alphas_ptr = self.alphas.as_ptr();
-            for _ in 0..v.len() / 2 {
+            for chunk in 0..v.len() / 2 {
                 let v = *ptr;
                 ptr = ptr.add(1);
                 let c1 = v >> 4;
                 let c2 = v % 16;
-                sum += *alphas_ptr * self.dist[c1 as usize] as f32;
+                sum += *alphas_ptr * self.centroid_distances[16 * chunk + c1 as usize] as f32;
                 alphas_ptr = alphas_ptr.add(1);
-                sum += *alphas_ptr * self.dist[c2 as usize] as f32;
+                sum += *alphas_ptr * self.centroid_distances[16 * (chunk + 1) + c2 as usize] as f32;
                 alphas_ptr = alphas_ptr.add(1);
             }
             sum

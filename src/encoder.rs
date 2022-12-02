@@ -1,19 +1,17 @@
+use crate::CENTROIDS_COUNT;
+
 pub struct EncodedVectorStorage {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
-    pub(crate) centroids: Vec<Vec<f32>>,
-    pub(crate) alphas: Vec<f32>,
-    pub(crate) offsets: Vec<f32>,
+    pub(crate) centroids: Vec<Vec<Vec<f32>>>,
+    pub(crate) chunks: Vec<usize>,
 }
 
 impl EncodedVectorStorage {
-    pub fn new<F>(
+    pub fn new(
         orig_data: Box<dyn Iterator<Item = &[f32]> + '_>,
         chunks: &[usize],
-        metric: F,
     ) -> Result<EncodedVectorStorage, String>
-    where
-        F: Fn(&[f32], &[f32]) -> f32,
     {
         let separated_data = Self::separate_data(orig_data, chunks)?;
 
@@ -28,27 +26,13 @@ impl EncodedVectorStorage {
         }
         let mut data = vec![0; vectors_count * chunks.len() / 2];
         let mut centroids = Vec::new();
-        let mut alphas = Vec::new();
-        let mut offsets = Vec::new();
-        for (chunk_index, (chunk_data, chunk_size)) in separated_data
+        for (chunk_index, (chunk_data, _chunk_size)) in separated_data
             .into_iter()
             .zip(chunks.iter().cloned())
             .enumerate()
         {
-            let chunk_data =
-                ndarray::Array2::from_shape_vec((vectors_count, chunk_size), chunk_data)
-                    .map_err(|_| format!("Failed to create ndarray from chunk data"))?;
-            let (chunk_centroids, indexes) = rkm::kmeans_lloyd(&chunk_data.view(), 16);
-            let centroid = chunk_centroids.as_slice().unwrap();
-            for i in 0..16 {
-                centroids.push(centroid[chunk_size * i..chunk_size * (i + 1)].to_vec());
-            }
-            let (alpha, offset) = Self::fit_alpha_offset(
-                &centroids[16 * chunk_index..16 * (chunk_index + 1)],
-                &metric,
-            );
-            alphas.push(alpha);
-            offsets.push(offset);
+            let (chunk_centroids, indexes) = Self::get_centroids(chunk_data)?;
+            centroids.push(chunk_centroids);
             for (vector_index, centroid_index) in indexes.into_iter().enumerate() {
                 Self::add_encoded_value(
                     &mut data,
@@ -63,8 +47,7 @@ impl EncodedVectorStorage {
             data,
             vector_size: chunks.len() / 2,
             centroids,
-            alphas,
-            offsets,
+            chunks: chunks.to_vec(),
         })
     }
 
@@ -93,39 +76,42 @@ impl EncodedVectorStorage {
     fn separate_data(
         orig_data: Box<dyn Iterator<Item = &[f32]> + '_>,
         chunks: &[usize],
-    ) -> Result<Vec<Vec<f32>>, String> {
+    ) -> Result<Vec<Vec<Vec<f32>>>, String> {
         let mut separated = vec![Vec::new(); chunks.len()];
         for v in orig_data {
             let mut start = 0;
             for (i, &chunk_size) in chunks.iter().enumerate() {
                 let end = start + chunk_size;
-                separated[i].extend_from_slice(&v[start..end]);
+                separated[i].push(v[start..end].to_vec());
                 start = end;
             }
         }
         Ok(separated)
     }
 
-    fn fit_alpha_offset<F>(centroids: &[Vec<f32>], _metric: F) -> (f32, f32)
-    where
-        F: Fn(&[f32], &[f32]) -> f32,
+    pub fn get_centroids(
+        points: Vec<Vec<f32>>,
+    ) -> Result<(Vec<Vec<f32>>, Vec<usize>), String>
     {
-        let mut min = f32::MAX;
-        let mut max = f32::MIN;
-        for centroid in centroids {
-            for &v in centroid {
-                if v < min {
-                    min = v;
-                }
-                if v > max {
-                    max = v;
-                }
+        let vectors_count = points.len();
+        let dim = points[0].len();
+        let mut chunk_data = ndarray::Array2::<f32>::default((vectors_count, dim));
+        for (i, mut row) in chunk_data.axis_iter_mut(ndarray::Axis(0)).enumerate() {
+            for (j, col) in row.iter_mut().enumerate() {
+                *col = points[i][j];
             }
         }
-        let alpha = 255.0 / (max - min);
-        let offset = -min * alpha;
-        (alpha, offset)
-    }
+    
+        let (chunk_centroids, indexes) = rkm::kmeans_lloyd(&chunk_data.view(), CENTROIDS_COUNT);
+    
+        let mut centroids = vec![Vec::new(); CENTROIDS_COUNT];
+        for (i, row) in chunk_centroids.axis_iter(ndarray::Axis(0)).enumerate() {
+            for col in &row {
+                centroids[i].push(*col);
+            }
+        }
+        Ok((centroids, indexes))
+    }    
 
     fn add_encoded_value(
         data: &mut [u8],
