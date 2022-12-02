@@ -87,6 +87,16 @@ impl EncodedVectorStorage {
     pub fn get_centroids(points: Vec<Vec<f32>>) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
         let vectors_count = points.len();
         let dim = points[0].len();
+
+        if dim == 1 {
+            let points: Vec<f32> = points.into_iter().flatten().collect();
+            let (centroids, indexes) = crate::kmeans_1d::kmeans_1d(&points);
+            return Ok((
+                centroids.into_iter().map(|v| vec![v]).collect(),
+                indexes,
+            ))
+        }
+
         let mut chunk_data = ndarray::Array2::<f32>::default((vectors_count, dim));
         for (i, mut row) in chunk_data.axis_iter_mut(ndarray::Axis(0)).enumerate() {
             for (j, col) in row.iter_mut().enumerate() {

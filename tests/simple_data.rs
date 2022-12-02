@@ -38,6 +38,6 @@ fn simple_data_test() {
     for i in 0..vector_data.len() {
         let distance = metric(&query, &vector_data[i]);
         let encoded_distance = lut.dist(encoder.get(i));
-        assert_eq!(distance, encoded_distance);
+        assert!(distance == encoded_distance || (distance - encoded_distance).abs() / distance < 0.05);
     }
 }

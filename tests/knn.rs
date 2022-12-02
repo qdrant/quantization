@@ -28,7 +28,7 @@ fn same_count(a: &[usize], b: &[usize]) -> usize {
 
 #[test]
 fn knn_test() {
-    let vectors_count = 1_000;
+    let vectors_count = 100;
     let vector_dim = 64;
     let mut rng = rand::thread_rng();
     let mut vector_data: Vec<Vec<f32>> = Vec::new();

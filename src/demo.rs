@@ -27,7 +27,7 @@ fn same_count(a: &[usize], b: &[usize]) -> usize {
 }
 
 fn main() {
-    let vectors_count = 10_000;
+    let vectors_count = 1_000_000;
     let vector_dim = 64;
     let mut rng = rand::thread_rng();
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
@@ -37,7 +37,7 @@ fn main() {
     }
 
     let timer = std::time::Instant::now();
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
+    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
     let encoder =
         EncodedVectorStorage::new(Box::new(vector_data.iter().map(|v| v.as_slice())), &chunks)
             .unwrap();
