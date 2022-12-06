@@ -1142,10 +1142,8 @@ name = "quantization"
 version = "0.1.0"
 dependencies = [
  "criterion",
- "ndarray 0.12.1",
  "permutation_iterator",
  "rand 0.8.5",
- "rkm",
 ]
 
 [[package]]

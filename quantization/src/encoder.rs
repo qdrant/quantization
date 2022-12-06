@@ -1,5 +1,3 @@
-use crate::CENTROIDS_COUNT;
-
 pub struct EncodedVectorStorage {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
@@ -8,8 +6,8 @@ pub struct EncodedVectorStorage {
 }
 
 impl EncodedVectorStorage {
-    pub fn new(
-        orig_data: Box<dyn Iterator<Item = &[f32]> + '_>,
+    pub fn new<'a>(
+        orig_data: impl Iterator<Item = &'a [f32]>,
         chunks: &[usize],
     ) -> Result<EncodedVectorStorage, String> {
         let separated_data = Self::separate_data(orig_data, chunks)?;
@@ -21,12 +19,12 @@ impl EncodedVectorStorage {
         }
         let mut data = vec![0; vectors_count * chunks.len() / 2];
         let mut centroids = Vec::new();
-        for (chunk_index, (chunk_data, _chunk_size)) in separated_data
+        for (chunk_index, (chunk_data, chunk_size)) in separated_data
             .into_iter()
             .zip(chunks.iter().cloned())
             .enumerate()
         {
-            let (chunk_centroids, indexes) = Self::get_centroids(chunk_data)?;
+            let (chunk_centroids, indexes) = Self::get_centroids(chunk_data, chunk_size)?;
             centroids.push(chunk_centroids);
             for (vector_index, centroid_index) in indexes.into_iter().enumerate() {
                 Self::add_encoded_value(
@@ -68,8 +66,8 @@ impl EncodedVectorStorage {
         self.data.len()
     }
 
-    fn separate_data(
-        orig_data: Box<dyn Iterator<Item = &[f32]> + '_>,
+    fn separate_data<'a>(
+        orig_data: impl Iterator<Item = &'a [f32]>,
         chunks: &[usize],
     ) -> Result<Vec<Vec<Vec<f32>>>, String> {
         let mut separated = vec![Vec::new(); chunks.len()];
@@ -84,35 +82,29 @@ impl EncodedVectorStorage {
         Ok(separated)
     }
 
-    pub fn get_centroids(points: Vec<Vec<f32>>) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
-        let vectors_count = points.len();
-        let dim = points[0].len();
-
-        if dim == 1 {
-            let points: Vec<f32> = points.into_iter().flatten().collect();
-            let (centroids, indexes) = crate::kmeans_1d::kmeans_1d(&points);
-            return Ok((
-                centroids.into_iter().map(|v| vec![v]).collect(),
-                indexes,
-            ))
+    pub fn get_centroids(
+        points: Vec<Vec<f32>>,
+        chunk_size: usize,
+    ) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
+        match chunk_size {
+            1 => {
+                let points: Vec<f32> = points.into_iter().flatten().collect();
+                let (centroids, indexes) = crate::kmeans_1d::kmeans_1d(&points);
+                return Ok((
+                    centroids.into_iter().map(|v| vec![v]).collect(),
+                    indexes,
+                ))
+            },
+            2 => {
+                let points: Vec<f32> = points.into_iter().flatten().collect();
+                let (centroids, indexes) = crate::kmeans_2d::kmeans_2d(&points);
+                return Ok((
+                    centroids.chunks_exact(2).map(|v| vec![v[0], v[1]]).collect(),
+                    indexes,
+                ))
+            },
+            _ => Err("Only 1 and 2 dimensions are supported".to_string()),
         }
-
-        let mut chunk_data = ndarray::Array2::<f32>::default((vectors_count, dim));
-        for (i, mut row) in chunk_data.axis_iter_mut(ndarray::Axis(0)).enumerate() {
-            for (j, col) in row.iter_mut().enumerate() {
-                *col = points[i][j];
-            }
-        }
-
-        let (chunk_centroids, indexes) = rkm::kmeans_lloyd(&chunk_data.view(), CENTROIDS_COUNT);
-
-        let mut centroids = vec![Vec::new(); CENTROIDS_COUNT];
-        for (i, row) in chunk_centroids.axis_iter(ndarray::Axis(0)).enumerate() {
-            for col in &row {
-                centroids[i].push(*col);
-            }
-        }
-        Ok((centroids, indexes))
     }
 
     fn add_encoded_value(
