@@ -1,3 +1,5 @@
+use crate::CENTROIDS_COUNT;
+
 pub struct EncodedVectorStorage {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
@@ -83,7 +85,7 @@ impl EncodedVectorStorage {
     }
 
     pub fn get_centroids(points: Vec<Vec<f32>>) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
-        let _vectors_count = points.len();
+        let vectors_count = points.len();
         let dim = points[0].len();
 
         if dim == 1 {
@@ -95,8 +97,6 @@ impl EncodedVectorStorage {
             ))
         }
 
-        panic!("need KMeans!");
-/*
         let mut chunk_data = ndarray::Array2::<f32>::default((vectors_count, dim));
         for (i, mut row) in chunk_data.axis_iter_mut(ndarray::Axis(0)).enumerate() {
             for (j, col) in row.iter_mut().enumerate() {
@@ -113,7 +113,6 @@ impl EncodedVectorStorage {
             }
         }
         Ok((centroids, indexes))
-*/
     }
 
     fn add_encoded_value(

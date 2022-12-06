@@ -1,0 +1,18 @@
+[package]
+name = "quantization"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+criterion = "0.4"
+permutation_iterator = "0.1.2"
+rand = "0.8.5"
+
+[dependencies]
+rkm = "0.8.1"
+rand = "0.8.5"
+ndarray = "0.12.1"
+
+[[bench]]
+name = "encode"
+harness = false

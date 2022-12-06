@@ -77,7 +77,7 @@ impl AnnBenchmarkData {
     pub fn encode_data(&self) -> EncodedVectorStorage {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let chunks = EncodedVectorStorage::divide_dim(self.dim, 1);
+        let chunks = EncodedVectorStorage::divide_dim(self.dim, 2);
         let encoded_data = EncodedVectorStorage::new(
             Box::new(self.vectors.rows().into_iter().map(|row| row.to_slice().unwrap())),
             &chunks).unwrap();
@@ -171,10 +171,10 @@ impl AnnBenchmarkData {
         let p95_time: f64 = timings[(timings.len() as f32 * 0.95) as usize];
         let p99_time: f64 = timings[(timings.len() as f32 * 0.99) as usize];
     
-        println!("Min search time: {}", min_time);
-        println!("Avg search time: {}", avg_time);
-        println!("p95 search time: {}", p95_time);
-        println!("p99 search time: {}", p99_time);
-        println!("Max search time: {}", max_time);
+        println!("Min search time: {}ms", min_time);
+        println!("Avg search time: {}ms", avg_time);
+        println!("p95 search time: {}ms", p95_time);
+        println!("p99 search time: {}ms", p99_time);
+        println!("Max search time: {}ms", max_time);
     }
 }
