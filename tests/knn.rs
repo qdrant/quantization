@@ -38,7 +38,7 @@ fn knn_test() {
     }
 
     let timer = std::time::Instant::now();
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 2);
+    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
     let encoder =
         EncodedVectorStorage::new(Box::new(vector_data.iter().map(|v| v.as_slice())), &chunks)
             .unwrap();

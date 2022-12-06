@@ -11,7 +11,11 @@ rand = "0.8.5"
 [dependencies]
 rkm = "0.8.1"
 rand = "0.8.5"
-ndarray = "0.12.1"
+
+hdf5 = "0.8.1"
+ndarray = "0.15"
+reqwest = { version = "0.11.13", features = ["blocking"] }
+indicatif = "0.17.2"
 
 [[bench]]
 name = "encode"
@@ -19,4 +23,8 @@ harness = false
 
 [[bin]]
 name = "demo"
-path = "src/demo.rs"
+path = "demos/demo.rs"
+
+[[bin]]
+name = "glove_100_angular"
+path = "demos/glove_100_angular.rs"
