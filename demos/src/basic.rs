@@ -23,7 +23,7 @@ fn main() {
 
     // Second step, encode the vector data
     let encoded = EncodedVectorStorage::new(
-        Box::new(vector_data.iter().map(|v| v.as_slice())),
+        vector_data.iter().map(|v| v.as_slice()),
         &chunks
     ).unwrap();
     
