@@ -9,7 +9,6 @@ permutation_iterator = "0.1.2"
 rand = "0.8.5"
 
 [dependencies]
-serde = { version = "~1.0", features = ["derive", "rc"] }
 
 [[bench]]
 name = "encode"

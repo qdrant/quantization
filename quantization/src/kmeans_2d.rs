@@ -54,7 +54,7 @@ pub fn kmeans_2d(array: &[f32]) -> (Vec<f32>, Vec<usize>) {
     }
 
     let mut indexes = vec![0u8; array.len()];
-    for _ in 0..200 {
+    for _ in 0..100 {
         update_indexes(&array, &centroids, &mut indexes);
         update_centroids(&array, &mut centroids, &indexes);
     }

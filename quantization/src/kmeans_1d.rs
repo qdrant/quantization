@@ -18,7 +18,7 @@ pub fn kmeans_1d(array: &[f32]) -> (Vec<f32>, Vec<usize>) {
     let mut indexes = vec![0u8; array.len()];
 
     let mut cluster_size = [0u32; CENTROIDS_COUNT];
-    for _ in 0..30 {
+    for _ in 0..50 {
         update_indexes(array, &centroids, &mut indexes);
         update_centroids(array, &mut centroids, &indexes, &mut cluster_size);
     }

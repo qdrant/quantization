@@ -1,6 +1,3 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Serialize)]
 pub struct EncodedVectorStorage {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
