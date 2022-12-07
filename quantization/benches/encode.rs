@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
+use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
 use rand::Rng;
 
 use std::arch::x86_64::*;
@@ -72,21 +72,33 @@ fn encode_bench(c: &mut Criterion) {
         list.push(vector);
     }
 
-    let chunks = EncodedVectors::divide_dim(vector_dim, 1);
+    let chunks = EncodedVectors::create_dim_partition(vector_dim, 1);
 
     group.bench_function("encode", |b| {
-        b.iter(|| EncodedVectors::new(list.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks));
+        b.iter(|| {
+            EncodedVectors::new(
+                list.iter().map(|v| v.as_slice()),
+                vectors_count,
+                vector_dim,
+                &chunks,
+            )
+        });
     });
 
-    let encoder =
-        EncodedVectors::new(list.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks).unwrap();
+    let encoder = EncodedVectors::new(
+        list.iter().map(|v| v.as_slice()),
+        vectors_count,
+        vector_dim,
+        &chunks,
+    )
+    .unwrap();
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
     group.bench_function("score all quantized", |b| {
         b.iter(|| {
-            let lut = Lut::new(&encoder, &query, metric);
+            let scorer: SimpleScorer = encoder.scorer(&query, metric);
             for i in 0..vectors_count {
-                lut.dist(encoder.get(i));
+                scorer.score_point(i);
             }
         });
     });
@@ -120,9 +132,9 @@ fn encode_bench(c: &mut Criterion) {
 
     group.bench_function("score random access quantized", |b| {
         b.iter(|| {
-            let lut = Lut::new(&encoder, &query, metric);
+            let scorer: SimpleScorer = encoder.scorer(&query, metric);
             for &i in &permutation {
-                lut.dist(encoder.get(i));
+                scorer.score_point(i);
             }
         });
     });

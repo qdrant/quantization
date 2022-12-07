@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
+use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
 
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct Score {
@@ -93,12 +93,12 @@ where
     let mut queries_count = 0;
     for query in queries {
         queries_count += 1;
-        let lut = Lut::new(encoded_data, &query, &metric);
+        let scorer: SimpleScorer = encoded_data.scorer(&query, &metric);
         let mut scores_orig: Vec<Score> = Vec::new();
         let mut scores_encoded: Vec<Score> = Vec::new();
         for index in 0..vectors_count {
             let distance = metric(&query, orig_data(index));
-            let encoded_distance = lut.dist(encoded_data.get(index));
+            let encoded_distance = scorer.score_point(index);
             scores_orig.push(Score {
                 index,
                 score: distance,

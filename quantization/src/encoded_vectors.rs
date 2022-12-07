@@ -1,10 +1,13 @@
 use std::ops::Range;
 
+use crate::scorer::Scorer;
+
 pub struct EncodedVectors {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
-    pub(crate) centroids: Vec<Vec<Vec<f32>>>,
+    pub(crate) centroids: Vec<Vec<f32>>,
     pub(crate) chunks: Vec<usize>,
+    pub(crate) dim: usize,
 }
 
 impl EncodedVectors {
@@ -45,7 +48,44 @@ impl EncodedVectors {
             vector_size: chunks.len() / 2,
             centroids,
             chunks: chunks.to_vec(),
+            dim,
         })
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> &[u8] {
+        &self.data[index * self.vector_size..(index + 1) * self.vector_size]
+    }
+
+    pub fn data_size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn decode_vector(&self, index: usize) -> Vec<f32> {
+        let mut vector = Vec::with_capacity(self.dim);
+        let encoded = self.get(index);
+        for (byte_index, &byte) in encoded.iter().enumerate() {
+            let centroid = (byte >> 4) as usize;
+            let chunk_index = 2 * byte_index;
+            let chunk_dim = self.chunks[chunk_index];
+            let range = chunk_dim * centroid..chunk_dim * (centroid + 1);
+            vector.extend_from_slice(&self.centroids[chunk_index][range]);
+
+            let centroid = (byte & 0b0000_1111) as usize;
+            let chunk_index = 2 * byte_index + 1;
+            let chunk_dim = self.chunks[chunk_index];
+            let range = chunk_dim * centroid..chunk_dim * (centroid + 1);
+            vector.extend_from_slice(&self.centroids[chunk_index][range]);
+        }
+        vector
+    }
+
+    pub fn scorer<'a, TScorer, M>(&'a self, query: &[f32], metric: M) -> TScorer
+    where
+        TScorer: Scorer + From<CompressedLookupTable<'a>>,
+        M: Fn(&[f32], &[f32]) -> f32,
+    {
+        CompressedLookupTable::new(self, query, metric).into()
     }
 
     /// Check that the chunk sizes are valid.
@@ -63,7 +103,7 @@ impl EncodedVectors {
         Ok(())
     }
 
-    pub fn divide_dim(dim: usize, chunk_size: usize) -> Vec<usize> {
+    pub fn create_dim_partition(dim: usize, chunk_size: usize) -> Vec<usize> {
         if chunk_size != 1 && chunk_size % 2 != 0 {
             panic!("chunk_size must be 1 or 2");
         }
@@ -112,7 +152,7 @@ impl EncodedVectors {
         orig_data: impl IntoIterator<Item = &'a [f32]>,
         chunk: Range<usize>,
         chunk_index: usize,
-    ) -> Result<Vec<Vec<f32>>, String> {
+    ) -> Result<Vec<f32>, String> {
         let mut chunk_data = Vec::new();
         for v in orig_data {
             chunk_data.extend_from_slice(
@@ -121,7 +161,7 @@ impl EncodedVectors {
             );
         }
 
-        let (centroids, indexes) = Self::get_centroids(&chunk_data, chunk.end - chunk.start)?;
+        let (centroids, indexes) = crate::kmeans::kmeans(&chunk_data, chunk.end - chunk.start);
 
         let bits_offset = (1 - (chunk_index % 2)) * 4;
         for (vector_index, centroid_index) in indexes.into_iter().enumerate() {
@@ -130,36 +170,62 @@ impl EncodedVectors {
 
         Ok(centroids)
     }
+}
 
-    #[inline]
-    pub fn get(&self, index: usize) -> &[u8] {
-        &self.data[index * self.vector_size..(index + 1) * self.vector_size]
-    }
+pub struct CompressedLookupTable<'a> {
+    pub(crate) encoded_vectors: &'a EncodedVectors,
+    pub(crate) centroid_distances: Vec<u8>,
+    pub(crate) alphas: Vec<f32>,
+    pub(crate) total_offset: f32,
+}
 
-    pub fn data_size(&self) -> usize {
-        self.data.len()
-    }
+impl<'a> CompressedLookupTable<'a> {
+    fn new<M>(encoded_vectors: &'a EncodedVectors, query: &[f32], metric: M) -> Self
+    where
+        M: Fn(&[f32], &[f32]) -> f32,
+    {
+        let mut centroid_distances =
+            Vec::with_capacity(crate::CENTROIDS_COUNT * encoded_vectors.centroids.len());
+        let mut alphas = Vec::with_capacity(encoded_vectors.centroids.len());
+        let mut total_offset = 0.0;
+        let mut start = 0;
+        for (i, chunk_centroids) in encoded_vectors.centroids.iter().enumerate() {
+            let chunk_size = encoded_vectors.chunks[i];
+            let query_chunk = &query[start..start + chunk_size];
+            start += chunk_size;
+            let distances: Vec<f32> = chunk_centroids
+                .as_slice()
+                .chunks_exact(chunk_size)
+                .map(|c| metric(c, query_chunk))
+                .collect();
 
-    pub fn get_centroids(
-        points: &[f32],
-        chunk_size: usize,
-    ) -> Result<(Vec<Vec<f32>>, Vec<usize>), String> {
-        match chunk_size {
-            1 => {
-                let (centroids, indexes) = crate::kmeans_1d::kmeans_1d(&points);
-                return Ok((centroids.into_iter().map(|v| vec![v]).collect(), indexes));
+            let mut min = f32::MAX;
+            let mut max = f32::MIN;
+            for &d in &distances {
+                if d < min {
+                    min = d;
+                }
+                if d > max {
+                    max = d;
+                }
             }
-            2 => {
-                let (centroids, indexes) = crate::kmeans_2d::kmeans_2d(&points);
-                return Ok((
-                    centroids
-                        .chunks_exact(2)
-                        .map(|v| vec![v[0], v[1]])
-                        .collect(),
-                    indexes,
-                ));
-            }
-            _ => Err("Only 1 and 2 dimensions are supported".to_string()),
+
+            let alpha = (max - min) / 255.0;
+            let offset = min;
+            let byte_distances = distances
+                .iter()
+                .map(|&d| ((d - offset) / alpha) as u8)
+                .collect::<Vec<_>>();
+
+            centroid_distances.extend_from_slice(&byte_distances);
+            alphas.push(alpha);
+            total_offset += offset;
+        }
+        Self {
+            encoded_vectors,
+            centroid_distances,
+            alphas,
+            total_offset,
         }
     }
 }

@@ -18,9 +18,14 @@ fn main() {
     }
 
     let timer = std::time::Instant::now();
-    let chunks = EncodedVectors::divide_dim(vector_dim, 1);
-    let encoder =
-        EncodedVectors::new(vector_data.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks).unwrap();
+    let chunks = EncodedVectors::create_dim_partition(vector_dim, 1);
+    let encoder = EncodedVectors::new(
+        vector_data.iter().map(|v| v.as_slice()),
+        vectors_count,
+        vector_dim,
+        &chunks,
+    )
+    .unwrap();
     println!("encoding time: {}ms", timer.elapsed().as_millis());
 
     let mut queries_data: Vec<Vec<f32>> = Vec::new();

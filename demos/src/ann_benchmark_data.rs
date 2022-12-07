@@ -2,7 +2,7 @@ use std::collections::BinaryHeap;
 
 use crate::utils::{cosine_preprocess, same_count, Score};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
+use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -74,7 +74,7 @@ impl AnnBenchmarkData {
     pub fn encode_data(&self, chunk_size: usize) -> EncodedVectors {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let chunks = EncodedVectors::divide_dim(self.dim, chunk_size);
+        let chunks = EncodedVectors::create_dim_partition(self.dim, chunk_size);
         let encoded_data = EncodedVectors::new(
             self.vectors
                 .rows()
@@ -111,11 +111,10 @@ impl AnnBenchmarkData {
             .enumerate()
         {
             let timer = std::time::Instant::now();
-            let lut = Lut::new(&encoded, query, similarity);
+            let scorer: SimpleScorer = encoded.scorer(&query, &similarity);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let encoded_vector = encoded.get(index);
-                let score = 1.0 - lut.dist(encoded_vector);
+                let score = 1.0 - scorer.score_point(index);
                 let score = Score { index, score };
                 if heap.len() == 100 {
                     let mut top = heap.peek_mut().unwrap();
