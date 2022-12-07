@@ -9,6 +9,7 @@ fn main() {
     // generate vector data and query
     let vectors_count = 100;
     let vector_dim = 64;
+    let error = vector_dim as f32 * 0.1;
 
     let mut rng = rand::thread_rng();
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
@@ -33,6 +34,7 @@ fn main() {
     // Third step, create lookup table - LUT. That's an encoding of the query
     let scorer: SimpleScorer = encoded.scorer(&query, euclid_similarity);
 
+    // score query
     for i in 0..vectors_count {
         // encoded score
         let score = scorer.score_point(i);
@@ -45,12 +47,16 @@ fn main() {
             .zip(vector_data[i].iter())
             .map(|(a, b)| (a - b).abs())
             .fold(0.0, |a, b| if a > b { a } else { b });
-
-        println!(
-            "Encoded score {}, orig score {},  diff {}",
-            score, orginal_score, diff
-        );
         assert!(diff < 0.3);
-        assert!((score - orginal_score).abs() < 2.0);
+        assert!((score - orginal_score).abs() < error);
+    }
+
+    // score between points
+    let point_id = 0;
+    for i in 0..vectors_count {
+        // encoded score
+        let score = encoded.score_between_points(point_id, i, euclid_similarity);
+        let orginal_score = euclid_similarity(&vector_data[point_id], &vector_data[i]);
+        assert!((score - orginal_score).abs() < error);
     }
 }

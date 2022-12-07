@@ -27,15 +27,6 @@ impl Scorer for SimpleScorer<'_> {
             sum
         }
     }
-
-    fn score_internal<M>(&self, point_a: usize, point_b: usize, metric: M) -> f32
-    where
-        M: Fn(&[f32], &[f32]) -> f32,
-    {
-        let a = self.lut.encoded_vectors.decode_vector(point_a as usize);
-        let b = self.lut.encoded_vectors.decode_vector(point_b as usize);
-        metric(&a, &b)
-    }
 }
 
 impl<'a> From<CompressedLookupTable<'a>> for SimpleScorer<'a> {

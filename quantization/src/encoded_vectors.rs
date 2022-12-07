@@ -80,6 +80,15 @@ impl EncodedVectors {
         vector
     }
 
+    pub fn score_between_points<M>(&self, point_a: usize, point_b: usize, metric: M) -> f32
+    where
+        M: Fn(&[f32], &[f32]) -> f32,
+    {
+        let a = self.decode_vector(point_a as usize);
+        let b = self.decode_vector(point_b as usize);
+        metric(&a, &b)
+    }
+
     pub fn scorer<'a, TScorer, M>(&'a self, query: &[f32], metric: M) -> TScorer
     where
         TScorer: Scorer + From<CompressedLookupTable<'a>>,
