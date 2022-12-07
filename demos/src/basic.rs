@@ -40,11 +40,16 @@ fn main() {
         // decoded vector
         let decoded = encoded.decode_vector(i);
         // check if the decoded vector is the same as the original vector
-        let diff: f32 = decoded.iter().zip(vector_data[i].iter()).map(|(a, b)| {
-            (a - b).abs()
-        }).fold(0.0, |a, b| if a > b { a } else { b });
+        let diff: f32 = decoded
+            .iter()
+            .zip(vector_data[i].iter())
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, |a, b| if a > b { a } else { b });
 
-        println!("Encoded score {}, orig score {},  diff {}", score, orginal_score, diff);
+        println!(
+            "Encoded score {}, orig score {},  diff {}",
+            score, orginal_score, diff
+        );
         assert!(diff < 0.3);
         assert!((score - orginal_score).abs() < 2.0);
     }

@@ -4,7 +4,7 @@ pub fn kmeans(array: &[f32], dim: usize) -> (Vec<f32>, Vec<usize>) {
     match dim {
         1 => kmeans_1d(array),
         2 => kmeans_2d(array),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
