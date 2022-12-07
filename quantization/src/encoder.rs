@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
 pub struct EncodedVectorStorage {
     pub(crate) data: Vec<u8>,
     pub(crate) vector_size: usize,
@@ -45,15 +48,48 @@ impl EncodedVectorStorage {
     }
 
     pub fn divide_dim(dim: usize, chunk_size: usize) -> Vec<usize> {
-        let mut chunks = Vec::new();
-        let mut dim = dim;
-        while dim > chunk_size {
-            chunks.push(chunk_size);
-            dim -= chunk_size;
+        if chunk_size != 1 && chunk_size % 2 != 0 {
+            panic!("chunk_size must be 1 or 2");
         }
-        if dim > 0 {
-            chunks.push(dim);
-        }
+
+        let chunks = match chunk_size {
+            1 => {
+                if dim % 2 == 0 {
+                    vec![1; dim]
+                } else {
+                    let mut chunks = vec![1; dim - 2];
+                    chunks.push(2);
+                    chunks
+                }
+            },
+            2 => {
+                let mut chunks = Vec::new();
+                let mut dim = dim;
+                while dim > 2 {
+                    chunks.push(2);
+                    dim -= 2;
+                }
+                if dim > 0 {
+                    if chunks.len() % 2 == 0 {
+                        chunks.pop();
+                        chunks.push(1);
+                        chunks.push(1);
+                    }
+                    chunks.push(dim);
+                } else {
+                    if chunks.len() % 2 == 1 {
+                        chunks.pop();
+                        chunks.push(1);
+                        chunks.push(1);
+                    }
+                }
+                chunks
+            }
+            _ => unreachable!(),
+        };
+        assert!(chunks.len() % 2 == 0);
+        assert!(chunks.iter().all(|&v| v == 1 || v == 2));
+        assert!(chunks.iter().sum::<usize>() == dim);
         chunks
     }
 

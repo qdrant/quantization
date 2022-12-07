@@ -19,8 +19,12 @@ reqwest = { version = "0.11.13", features = ["blocking"] }
 indicatif = "0.17.2"
 
 [[bin]]
-name = "demo"
-path = "src/demo.rs"
+name = "basic"
+path = "src/basic.rs"
+
+[[bin]]
+name = "random_data"
+path = "src/random_data.rs"
 
 [[bin]]
 name = "glove_100_angular"

@@ -1144,6 +1144,7 @@ dependencies = [
  "criterion",
  "permutation_iterator",
  "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
