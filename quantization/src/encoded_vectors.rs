@@ -19,15 +19,25 @@ impl EncodedVectors {
         let mut data = vec![0; vectors_count * chunks.len() / 2];
         let mut centroids = Vec::new();
         let mut chunk_offset = 0;
+        let mut byte_column = vec![0; vectors_count];
         for (chunk_index, &chunk) in chunks.iter().enumerate() {
             let chunk_centroids = Self::encode_chunk(
+                &mut byte_column,
                 orig_data.clone(),
                 chunk_offset..chunk_offset + chunk,
                 chunk_index,
-                chunks.len(),
-                &mut data)?;
+            )?;
             centroids.push(chunk_centroids);
             chunk_offset += chunk;
+
+            if chunk_index % 2 == 1 {
+                let column_index = chunk_index / 2;
+                let columns_count = chunks.len() / 2;
+                for (vector_index, &byte) in byte_column.iter().enumerate() {
+                    data[vector_index * columns_count + column_index] = byte;
+                }
+                byte_column.as_mut_slice().fill(0);
+            }
         }
 
         Ok(EncodedVectors {
@@ -98,11 +108,10 @@ impl EncodedVectors {
     }
 
     fn encode_chunk<'a>(
+        byte_column: &mut [u8],
         orig_data: impl IntoIterator<Item = &'a [f32]>,
         chunk: Range<usize>,
         chunk_index: usize,
-        chunks_count: usize,
-        data: &mut [u8],
     ) -> Result<Vec<Vec<f32>>, String> {
         let mut chunk_data = Vec::new();
         for v in orig_data {
@@ -114,10 +123,9 @@ impl EncodedVectors {
 
         let (centroids, indexes) = Self::get_centroids(&chunk_data, chunk.end - chunk.start)?;
 
-        let bit_index = (1 - (chunk_index % 2)) * 4;
+        let bits_offset = (1 - (chunk_index % 2)) * 4;
         for (vector_index, centroid_index) in indexes.into_iter().enumerate() {
-            let byte_index = vector_index * chunks_count / 2 + chunk_index / 2;
-            data[byte_index] |= (centroid_index as u8) << bit_index;
+            byte_column[vector_index] |= (centroid_index as u8) << bits_offset;
         }
 
         Ok(centroids)
