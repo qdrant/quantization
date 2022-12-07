@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{encoder::EncodedVectorStorage, lut::Lut};
+use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
 use rand::Rng;
 
 use std::arch::x86_64::*;
@@ -16,10 +16,7 @@ unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
 
 #[target_feature(enable = "avx")]
 #[target_feature(enable = "fma")]
-pub(crate) unsafe fn dot_avx(
-    v1: &[f32],
-    v2: &[f32],
-) -> f32 {
+pub(crate) unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 32);
     let mut ptr1: *const f32 = v1.as_ptr();
@@ -75,14 +72,14 @@ fn encode_bench(c: &mut Criterion) {
         list.push(vector);
     }
 
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
+    let chunks = EncodedVectors::divide_dim(vector_dim, 1);
 
     group.bench_function("encode", |b| {
-        b.iter(|| EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks));
+        b.iter(|| EncodedVectors::new(list.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks));
     });
 
     let encoder =
-        EncodedVectorStorage::new(Box::new(list.iter().map(|v| v.as_slice())), &chunks).unwrap();
+        EncodedVectors::new(list.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks).unwrap();
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
     group.bench_function("score all quantized", |b| {
@@ -107,8 +104,7 @@ fn encode_bench(c: &mut Criterion) {
 
     #[cfg(target_arch = "x86_64")]
     {
-        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma")
-        {
+        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
             group.bench_function("score all avx", |b| {
                 b.iter(|| unsafe {
                     for v in &list {
@@ -145,8 +141,7 @@ fn encode_bench(c: &mut Criterion) {
 
     #[cfg(target_arch = "x86_64")]
     {
-        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma")
-        {
+        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
             group.bench_function("score random access avx", |b| {
                 b.iter(|| unsafe {
                     for &i in &permutation {

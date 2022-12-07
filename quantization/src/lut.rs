@@ -1,4 +1,4 @@
-use crate::{encoder::EncodedVectorStorage, CENTROIDS_COUNT};
+use crate::{encoded_vectors::EncodedVectors, CENTROIDS_COUNT};
 
 pub struct Lut {
     pub(crate) centroid_distances: Vec<u8>,
@@ -7,7 +7,7 @@ pub struct Lut {
 }
 
 impl Lut {
-    pub fn new<F>(encoder: &EncodedVectorStorage, query: &[f32], metric: F) -> Lut
+    pub fn new<F>(encoder: &EncodedVectors, query: &[f32], metric: F) -> Lut
     where
         F: Fn(&[f32], &[f32]) -> f32,
     {

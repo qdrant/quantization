@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use quantization::{encoder::EncodedVectorStorage, lut::Lut};
+use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
 
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct Score {
@@ -50,7 +50,8 @@ pub fn cosine_preprocess(vector: &mut [f32]) {
 
 #[allow(unused)]
 pub fn knn<I>(count: usize, scores: I) -> Vec<Score>
-where I: Iterator<Item = Score>
+where
+    I: Iterator<Item = Score>,
 {
     let mut heap: BinaryHeap<Score> = BinaryHeap::new();
     for score in scores {
@@ -78,10 +79,10 @@ pub fn run_knn_queries<'a, I, F, M>(
     vectors_count: usize,
     queries: I,
     orig_data: F,
-    encoded_data: &EncodedVectorStorage,
+    encoded_data: &EncodedVectors,
     metric: M,
 ) -> (f32, f32, f32)
-where 
+where
     I: Iterator<Item = &'a [f32]>,
     F: Fn(usize) -> &'a [f32],
     M: Fn(&[f32], &[f32]) -> f32,
@@ -98,8 +99,14 @@ where
         for index in 0..vectors_count {
             let distance = metric(&query, orig_data(index));
             let encoded_distance = lut.dist(encoded_data.get(index));
-            scores_orig.push(Score { index, score: distance });
-            scores_encoded.push(Score { index, score: encoded_distance });
+            scores_orig.push(Score {
+                index,
+                score: distance,
+            });
+            scores_encoded.push(Score {
+                index,
+                score: encoded_distance,
+            });
         }
         let knn_orig = knn(10, scores_orig.iter().cloned());
         assert!(knn_orig.len() == 10);

@@ -1,5 +1,5 @@
-mod utils;
 mod ann_benchmark_data;
+mod utils;
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
 
@@ -9,6 +9,6 @@ fn main() {
         "http://ann-benchmarks.com/glove-100-angular.hdf5",
     );
     data.cosine_preprocess();
-    let encoded = data.encode_data();
+    let encoded = data.encode_data(1);
     data.test_encoded(&encoded, utils::dot_similarity);
 }

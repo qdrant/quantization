@@ -1,8 +1,8 @@
 use std::collections::BinaryHeap;
 
-use indicatif::{ProgressBar, MultiProgress, ProgressStyle};
-use quantization::{encoder::EncodedVectorStorage, lut::Lut};
-use crate::utils::{Score, cosine_preprocess, same_count};
+use crate::utils::{cosine_preprocess, same_count, Score};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use quantization::{encoded_vectors::EncodedVectors, lut::Lut};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -14,10 +14,7 @@ pub struct AnnBenchmarkData {
 }
 
 impl AnnBenchmarkData {
-    pub fn new(
-        filename: &str,
-        url: &str,
-    ) -> Self {
+    pub fn new(filename: &str, url: &str) -> Self {
         println!("Test {}", url);
         if !std::path::Path::new(filename).exists() {
             Self::download_file(filename, url);
@@ -27,7 +24,7 @@ impl AnnBenchmarkData {
         let vectors = vectors_dataset.read_2d::<f32>().unwrap();
         let vectors_count = vectors.shape()[0];
         let dim = vectors.shape()[1];
-    
+
         let query_dataset = dataset.dataset("test").unwrap();
         let queries = query_dataset.read_2d::<f32>().unwrap();
         let queries_count = queries.shape()[0];
@@ -74,24 +71,27 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self) -> EncodedVectorStorage {
+    pub fn encode_data(&self, chunk_size: usize) -> EncodedVectors {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let chunks = EncodedVectorStorage::divide_dim(self.dim, 2);
-        let encoded_data = EncodedVectorStorage::new(
-            Box::new(self.vectors.rows().into_iter().map(|row| row.to_slice().unwrap())),
-            &chunks).unwrap();
+        let chunks = EncodedVectors::divide_dim(self.dim, chunk_size);
+        let encoded_data = EncodedVectors::new(
+            self.vectors
+                .rows()
+                .into_iter()
+                .map(|row| row.to_slice().unwrap()),
+            self.vectors_count,
+            self.dim,
+            &chunks,
+        )
+        .unwrap();
         println!("encoding time: {:?}", timer.elapsed());
         println!("Original data size: {}", self.vectors_count * self.dim * 4);
         println!("Encoded data size: {}", encoded_data.data_size());
         encoded_data
     }
 
-    pub fn test_encoded(
-        &self,
-        encoded: &EncodedVectorStorage,
-        similarity: fn(&[f32], &[f32]) -> f32,
-    ) {
+    pub fn test_encoded(&self, encoded: &EncodedVectors, similarity: fn(&[f32], &[f32]) -> f32) {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(self.queries_count as u64));
         let progress_style = ProgressStyle::default_bar()
@@ -103,17 +103,20 @@ impl AnnBenchmarkData {
         let mut same_30 = 0.0;
         let mut same_100 = 0.0;
         let mut timings = Vec::new();
-        for (j, query) in self.queries.rows().into_iter().map(|q| q.to_slice().unwrap()).enumerate() {
+        for (j, query) in self
+            .queries
+            .rows()
+            .into_iter()
+            .map(|q| q.to_slice().unwrap())
+            .enumerate()
+        {
             let timer = std::time::Instant::now();
             let lut = Lut::new(&encoded, query, similarity);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
                 let encoded_vector = encoded.get(index);
                 let score = 1.0 - lut.dist(encoded_vector);
-                let score = Score {
-                    index,
-                    score,
-                };
+                let score = Score { index, score };
                 if heap.len() == 100 {
                     let mut top = heap.peek_mut().unwrap();
                     if top.score > score.score {
@@ -164,13 +167,13 @@ impl AnnBenchmarkData {
         }
         // sort timings in ascending order
         timings.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-    
+
         let avg_time: f64 = timings.iter().sum::<f64>() / timings.len() as f64;
         let min_time: f64 = timings.first().copied().unwrap_or(0.0);
         let max_time: f64 = timings.last().copied().unwrap_or(0.0);
         let p95_time: f64 = timings[(timings.len() as f32 * 0.95) as usize];
         let p99_time: f64 = timings[(timings.len() as f32 * 0.99) as usize];
-    
+
         println!("Min search time: {}ms", min_time);
         println!("Avg search time: {}ms", avg_time);
         println!("p95 search time: {}ms", p95_time);

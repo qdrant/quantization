@@ -1,6 +1,6 @@
 mod utils;
 
-use quantization::{encoder::EncodedVectorStorage};
+use quantization::encoded_vectors::EncodedVectors;
 use rand::Rng;
 
 use crate::utils::euclid_similarity;
@@ -18,10 +18,9 @@ fn main() {
     }
 
     let timer = std::time::Instant::now();
-    let chunks = EncodedVectorStorage::divide_dim(vector_dim, 1);
+    let chunks = EncodedVectors::divide_dim(vector_dim, 1);
     let encoder =
-        EncodedVectorStorage::new(Box::new(vector_data.iter().map(|v| v.as_slice())), &chunks)
-            .unwrap();
+        EncodedVectors::new(vector_data.iter().map(|v| v.as_slice()), vectors_count, vector_dim, &chunks).unwrap();
     println!("encoding time: {}ms", timer.elapsed().as_millis());
 
     let mut queries_data: Vec<Vec<f32>> = Vec::new();

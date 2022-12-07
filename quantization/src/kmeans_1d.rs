@@ -23,7 +23,10 @@ pub fn kmeans_1d(array: &[f32]) -> (Vec<f32>, Vec<usize>) {
         update_centroids(array, &mut centroids, &indexes, &mut cluster_size);
     }
 
-    (centroids.to_vec(), indexes.iter().map(|&i| i as usize).collect())
+    (
+        centroids.to_vec(),
+        indexes.iter().map(|&i| i as usize).collect(),
+    )
 }
 
 fn update_centroids(
@@ -45,11 +48,7 @@ fn update_centroids(
     }
 }
 
-fn update_indexes(
-    array: &[f32],
-    centroids: &[f32; CENTROIDS_COUNT],
-    indexes: &mut [u8],
-) {
+fn update_indexes(array: &[f32], centroids: &[f32; CENTROIDS_COUNT], indexes: &mut [u8]) {
     for (i, &v) in array.iter().enumerate() {
         let mut min_dist = f32::MAX;
         let mut min_index = 0u8;

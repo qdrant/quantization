@@ -33,7 +33,10 @@ impl Vec2 {
 }
 
 pub fn kmeans_2d(array: &[f32]) -> (Vec<f32>, Vec<usize>) {
-    let array = array.chunks_exact(2).map(|v| Vec2::new(v[0], v[1])).collect::<Vec<_>>();
+    let array = array
+        .chunks_exact(2)
+        .map(|v| Vec2::new(v[0], v[1]))
+        .collect::<Vec<_>>();
 
     let mut min = Vec2::new(f32::MAX, f32::MAX);
     let mut max = Vec2::new(f32::MIN, f32::MIN);
@@ -67,11 +70,7 @@ pub fn kmeans_2d(array: &[f32]) -> (Vec<f32>, Vec<usize>) {
     (c, indexes.iter().map(|&i| i as usize).collect())
 }
 
-fn update_centroids(
-    array: &[Vec2],
-    centroids: &mut [Vec2; CENTROIDS_COUNT],
-    indexes: &[u8],
-) {
+fn update_centroids(array: &[Vec2], centroids: &mut [Vec2; CENTROIDS_COUNT], indexes: &[u8]) {
     let mut cluster_size = [0u32; CENTROIDS_COUNT];
     centroids.iter_mut().for_each(|c| *c = Vec2::new(0.0, 0.0));
     cluster_size.iter_mut().for_each(|c| *c = 0);
@@ -86,11 +85,7 @@ fn update_centroids(
     }
 }
 
-fn update_indexes(
-    array: &[Vec2],
-    centroids: &[Vec2; CENTROIDS_COUNT],
-    indexes: &mut [u8],
-) {
+fn update_indexes(array: &[Vec2], centroids: &[Vec2; CENTROIDS_COUNT], indexes: &mut [u8]) {
     for (i, v) in array.iter().enumerate() {
         let mut min_dist = f32::MAX;
         let mut min_index = 0u8;
