@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
+use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer, sse_scorer::SseScorer};
 use rand::Rng;
 
 use std::arch::x86_64::*;
@@ -64,7 +64,7 @@ fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
     let vectors_count = 100_000;
-    let vector_dim = 512;
+    let vector_dim = 64;
     let mut rng = rand::thread_rng();
     let mut list: Vec<Vec<f32>> = Vec::new();
     for _ in 0..vectors_count {
@@ -103,6 +103,18 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
+    {
+        group.bench_function("score all quantized SSE", |b| {
+            b.iter(|| {
+                let scorer: SseScorer = encoder.scorer(&query, metric);
+                for i in 0..vectors_count {
+                    scorer.score_point(i);
+                }
+            });
+        });
+    }
+
     group.bench_function("score all original", |b| {
         b.iter(|| {
             for v in &list {
@@ -138,6 +150,18 @@ fn encode_bench(c: &mut Criterion) {
             }
         });
     });
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        group.bench_function("score random access quantized SSE", |b| {
+            b.iter(|| {
+                let scorer: SseScorer = encoder.scorer(&query, metric);
+                for &i in &permutation {
+                    scorer.score_point(i);
+                }
+            });
+        });
+    }
 
     group.bench_function("score random access original", |b| {
         b.iter(|| {

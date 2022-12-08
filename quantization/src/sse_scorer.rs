@@ -8,10 +8,10 @@ pub struct SseScorer<'a> {
 impl Scorer for SseScorer<'_> {
     #[inline]
     fn score_point(&self, point: usize) -> f32 {
+        // requires sse + sse2 + ssse3
         unsafe {
             let low_4bits_mask = _mm_set1_epi8(0x0F);
             let low_8bits_mask = _mm_set_epi32(255, 255, 255, 255);
-            //let low_first_byte_mask = _mm256_set1_epi8(0x0F);
 
             let v = self.lut.encoded_vectors.get(point as usize);
             let codes_count = v.len();
@@ -30,23 +30,23 @@ impl Scorer for SseScorer<'_> {
                 let x_shft = _mm_srli_epi16(x_col, 4);
                 let x_high = _mm_and_si128(x_shft, low_4bits_mask);
 
-                let lut = _mm_lddqu_si128(lut_ptr as *const __m128i);
+                let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
                 lut_ptr = lut_ptr.add(16);
-                let alpha = *alphas_ptr;
-                alphas_ptr = alphas_ptr.add(1);
-                let dists = _mm_shuffle_epi8(lut, x_low);
-                let dists = _mm_and_si128(dists, low_8bits_mask);
-                let dists = _mm_cvtepi32_ps(dists);
-                sum_low = _mm_add_ps(sum_low, _mm_mul_ps(dists, _mm_set1_ps(alpha)));
-
-                let lut = _mm_lddqu_si128(lut_ptr as *const __m128i);
-                lut_ptr = lut_ptr.add(16);
-                let alpha = *alphas_ptr;
-                alphas_ptr = alphas_ptr.add(1);
                 let dists = _mm_shuffle_epi8(lut, x_high);
                 let dists = _mm_and_si128(dists, low_8bits_mask);
                 let dists = _mm_cvtepi32_ps(dists);
-                sum_high = _mm_add_ps(sum_high, _mm_mul_ps(dists, _mm_set1_ps(alpha)));
+                let alpha = _mm_set1_ps(*alphas_ptr);
+                alphas_ptr = alphas_ptr.add(1);
+                sum_high = _mm_add_ps(sum_high, _mm_mul_ps(dists, alpha));
+
+                let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
+                lut_ptr = lut_ptr.add(16);
+                let dists = _mm_shuffle_epi8(lut, x_low);
+                let dists = _mm_and_si128(dists, low_8bits_mask);
+                let dists = _mm_cvtepi32_ps(dists);
+                let alpha = _mm_set1_ps(*alphas_ptr);
+                alphas_ptr = alphas_ptr.add(1);
+                sum_low = _mm_add_ps(sum_low, _mm_mul_ps(dists, alpha));
             }
             let sum = _mm_add_ps(sum_low, sum_high);
             _mm_cvtss_f32(sum) + self.lut.total_offset
