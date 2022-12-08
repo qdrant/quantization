@@ -9,26 +9,26 @@ impl Scorer for SimpleScorer<'_> {
     fn score_point(&self, point: usize) -> f32 {
         unsafe {
             let v = self.lut.encoded_vectors.get(point as usize);
-            let mut sum = self.lut.total_offset;
+            let mut sum = 0u32;
             let mut ptr = v.as_ptr();
             let mut lut_ptr = self.lut.centroid_distances.as_ptr();
             for _ in 0..v.len() {
                 let v = *ptr;
                 ptr = ptr.add(1);
                 let c1 = v >> 4;
-                let c2 = v % 16;
+                let c2 = v & 0x0F;
 
-                let alpha = *(lut_ptr as *const f32);
+                let alpha = *(lut_ptr as *const u32);
                 lut_ptr = lut_ptr.add(4);
-                sum += alpha * (*lut_ptr.add(c1 as usize) as f32) as f32;
+                sum += alpha * (*lut_ptr.add(c1 as usize) as u32);
                 lut_ptr = lut_ptr.add(16);
 
-                let alpha = *(lut_ptr as *const f32);
+                let alpha = *(lut_ptr as *const u32);
                 lut_ptr = lut_ptr.add(4);
-                sum += alpha * (*lut_ptr.add(c2 as usize) as f32) as f32;
+                sum += alpha * (*lut_ptr.add(c2 as usize) as u32);
                 lut_ptr = lut_ptr.add(16);
             }
-            sum
+            sum as f32 * self.lut.alpha + self.lut.offset
         }
     }
 }

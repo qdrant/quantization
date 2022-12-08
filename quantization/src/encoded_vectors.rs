@@ -184,8 +184,8 @@ impl EncodedVectors {
 pub struct CompressedLookupTable<'a> {
     pub(crate) encoded_vectors: &'a EncodedVectors,
     pub(crate) centroid_distances: Vec<u8>,
-    pub(crate) alphas: Vec<f32>,
-    pub(crate) total_offset: f32,
+    pub(crate) alpha: f32,
+    pub(crate) offset: f32,
 }
 
 impl<'a> CompressedLookupTable<'a> {
@@ -226,7 +226,7 @@ impl<'a> CompressedLookupTable<'a> {
                 .map(|&d| ((d - offset) / alpha) as u8)
                 .collect::<Vec<_>>();
 
-            centroid_distances.extend_from_slice(&alpha.to_ne_bytes());
+            centroid_distances.extend_from_slice(&((alpha * 10_000.) as u32).to_ne_bytes());
             centroid_distances.extend_from_slice(&byte_distances);
             alphas.push(alpha);
             total_offset += offset;
@@ -234,8 +234,8 @@ impl<'a> CompressedLookupTable<'a> {
         Self {
             encoded_vectors,
             centroid_distances,
-            alphas,
-            total_offset,
+            alpha: 1.0 / 10_000.,
+            offset: total_offset,
         }
     }
 }

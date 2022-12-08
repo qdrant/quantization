@@ -50,7 +50,7 @@ impl Scorer for SseScorer<'_> {
                 sum_low = _mm_add_ps(sum_low, _mm_mul_ps(dists, alpha));
             }
             let sum = _mm_add_ps(sum_low, sum_high);
-            _mm_cvtss_f32(sum) + self.lut.total_offset
+            _mm_cvtss_f32(sum)  * self.lut.alpha + self.lut.offset
         }
     }
 }
