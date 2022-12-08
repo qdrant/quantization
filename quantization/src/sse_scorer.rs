@@ -6,7 +6,7 @@ pub struct SseScorer<'a> {
 }
 
 impl Scorer for SseScorer<'_> {
-    #[inline]
+    //#[inline]
     fn score_point(&self, point: usize) -> f32 {
         // requires sse + sse2 + ssse3
         unsafe {
