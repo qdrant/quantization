@@ -18,7 +18,6 @@ impl Scorer for SseScorer<'_> {
 
             let mut codes_ptr = v.as_ptr();
             let mut lut_ptr = self.lut.centroid_distances.as_ptr();
-            let mut alphas_ptr = self.lut.alphas.as_ptr();
 
             let mut sum_low: __m128 = _mm_setzero_ps();
             let mut sum_high: __m128 = _mm_setzero_ps();
@@ -30,22 +29,24 @@ impl Scorer for SseScorer<'_> {
                 let x_shft = _mm_srli_epi16(x_col, 4);
                 let x_high = _mm_and_si128(x_shft, low_4bits_mask);
 
+                let alpha = *(lut_ptr as *const f32);
+                let alpha = _mm_set1_ps(alpha);
+                lut_ptr = lut_ptr.add(4);
                 let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
                 lut_ptr = lut_ptr.add(16);
                 let dists = _mm_shuffle_epi8(lut, x_high);
                 let dists = _mm_and_si128(dists, low_8bits_mask);
                 let dists = _mm_cvtepi32_ps(dists);
-                let alpha = _mm_set1_ps(*alphas_ptr);
-                alphas_ptr = alphas_ptr.add(1);
                 sum_high = _mm_add_ps(sum_high, _mm_mul_ps(dists, alpha));
 
+                let alpha = *(lut_ptr as *const f32);
+                let alpha = _mm_set1_ps(alpha);
+                lut_ptr = lut_ptr.add(4);
                 let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
                 lut_ptr = lut_ptr.add(16);
                 let dists = _mm_shuffle_epi8(lut, x_low);
                 let dists = _mm_and_si128(dists, low_8bits_mask);
                 let dists = _mm_cvtepi32_ps(dists);
-                let alpha = _mm_set1_ps(*alphas_ptr);
-                alphas_ptr = alphas_ptr.add(1);
                 sum_low = _mm_add_ps(sum_low, _mm_mul_ps(dists, alpha));
             }
             let sum = _mm_add_ps(sum_low, sum_high);

@@ -226,6 +226,7 @@ impl<'a> CompressedLookupTable<'a> {
                 .map(|&d| ((d - offset) / alpha) as u8)
                 .collect::<Vec<_>>();
 
+            centroid_distances.extend_from_slice(&alpha.to_ne_bytes());
             centroid_distances.extend_from_slice(&byte_distances);
             alphas.push(alpha);
             total_offset += offset;
