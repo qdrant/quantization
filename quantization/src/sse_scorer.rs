@@ -10,8 +10,8 @@ impl Scorer for SseScorer<'_> {
     fn score_point(&self, point: usize) -> f32 {
         // requires sse + sse2 + ssse3
         unsafe {
-            let low_4bits_mask = _mm_set1_epi8(0x0F);
-            let low_8bits_mask = _mm_set_epi32(255, 255, 255, 255);
+            //let low_4bits_mask = _mm_set1_epi8(0x0F);
+            //let low_8bits_mask = _mm_set_epi32(255, 255, 255, 255);
 
             let v = self.lut.encoded_vectors.get(point as usize);
             let codes_count = v.len();
@@ -19,38 +19,27 @@ impl Scorer for SseScorer<'_> {
             let mut codes_ptr = v.as_ptr();
             let mut lut_ptr = self.lut.centroid_distances.as_ptr();
 
-            let mut sum_low: __m128 = _mm_setzero_ps();
-            let mut sum_high: __m128 = _mm_setzero_ps();
+            let mut sum: __m128i = _mm_setzero_si128();
             for _ in 0..codes_count {
-                let x_col = _mm_set1_epi8(*(codes_ptr as *const i8));
+                let v = *codes_ptr;
                 codes_ptr = codes_ptr.add(1);
+                let c1 = v >> 4;
+                let c2 = v & 0x0F;
 
-                let x_low = _mm_and_si128(x_col, low_4bits_mask);
-                let x_shft = _mm_srli_epi16(x_col, 4);
-                let x_high = _mm_and_si128(x_shft, low_4bits_mask);
-
-                let alpha = *(lut_ptr as *const f32);
-                let alpha = _mm_set1_ps(alpha);
+                let alpha = *(lut_ptr as *const i32);
                 lut_ptr = lut_ptr.add(4);
-                let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
+                let d1 = alpha * (*lut_ptr.add(c1 as usize) as i32);
                 lut_ptr = lut_ptr.add(16);
-                let dists = _mm_shuffle_epi8(lut, x_high);
-                let dists = _mm_and_si128(dists, low_8bits_mask);
-                let dists = _mm_cvtepi32_ps(dists);
-                sum_high = _mm_add_ps(sum_high, _mm_mul_ps(dists, alpha));
 
-                let alpha = *(lut_ptr as *const f32);
-                let alpha = _mm_set1_ps(alpha);
+                let alpha = *(lut_ptr as *const i32);
                 lut_ptr = lut_ptr.add(4);
-                let lut = _mm_loadu_si128(lut_ptr as *const __m128i);
+                let d2 = alpha * (*lut_ptr.add(c2 as usize) as i32);
                 lut_ptr = lut_ptr.add(16);
-                let dists = _mm_shuffle_epi8(lut, x_low);
-                let dists = _mm_and_si128(dists, low_8bits_mask);
-                let dists = _mm_cvtepi32_ps(dists);
-                sum_low = _mm_add_ps(sum_low, _mm_mul_ps(dists, alpha));
+
+                sum = _mm_add_epi32(sum, _mm_set_epi32(d1, d2, 0, 0));
             }
-            let sum = _mm_add_ps(sum_low, sum_high);
-            _mm_cvtss_f32(sum)  * self.lut.alpha + self.lut.offset
+            //let sum = _mm_add_ps(sum_low, sum_high);
+            _mm_cvtsi128_si32(sum) as f32 * self.lut.alpha + self.lut.offset
         }
     }
 }
