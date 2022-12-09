@@ -23,37 +23,38 @@ impl Scorer for SseScorer<'_> {
                 let codes_shft = _mm_srli_epi16(codes, 4);
                 let mut codes_high = _mm_and_si128(codes_shft, low_4bits_mask);
 
-                let high_mask = _mm_set_epi32(0xFF, 0, 0xFF, 0);
-                let low_mask = _mm_set_epi32(0, 0xFF, 0, 0xFF);
+                let distances_mask = _mm_set_epi64x(0, 0xFF);
                 for _ in 0..16 {
                     let alpha1 = *(lut_ptr as *const i32);
                     lut_ptr = lut_ptr.add(4);
                     let lut1 = _mm_loadu_si128(lut_ptr as *const __m128i);
                     lut_ptr = lut_ptr.add(16);
 
+                    let dists1 = _mm_shuffle_epi8(lut1, codes_high);
+                    let dists1 = _mm_and_si128(dists1, distances_mask);
+
                     let alpha2 = *(lut_ptr as *const i32);
                     lut_ptr = lut_ptr.add(4);
                     let lut2 = _mm_loadu_si128(lut_ptr as *const __m128i);
                     lut_ptr = lut_ptr.add(16);
 
-                    let dists1 = _mm_shuffle_epi8(lut1, codes_high);
-                    let dists1 = _mm_and_si128(dists1, high_mask);
-
                     let dists2 = _mm_shuffle_epi8(lut2, codes_low);
-                    let dists2 = _mm_and_si128(dists2, low_mask);
+                    let dists2 = _mm_and_si128(dists2, distances_mask);
+                    let dists2 = _mm_slli_si128(dists2, 4);
 
-                    let dists = _mm_and_si128(dists1, dists2);
-                    let dists = _mm_mul_epu32(dists, _mm_set_epi32(alpha1, alpha2, alpha1, alpha2));
-                    sum = _mm_add_epi32(sum, dists);
+                    let dists = _mm_or_si128(dists1, dists2);
+                    let alpha = _mm_set_epi32(0, 0, alpha2, alpha1);
+                    let mul_dists = _mm_mul_epi32(dists, alpha); // ??
+                    sum = _mm_add_epi32(sum, mul_dists);
 
-                    codes_low = _mm_shuffle_epi32(codes_low, 0b01_10_11_00);
-                    codes_high = _mm_shuffle_epi32(codes_high, 0b01_10_11_00);
+                    codes_low = _mm_srli_si128(codes_low, 1);
+                    codes_high = _mm_srli_si128(codes_high, 1);
                 }
 
                 codes_ptr = codes_ptr.add(1);
             }
-            let sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, 0b01_00_11_10));
-            _mm_cvtss_f32(_mm_cvtepi32_ps(sum)) * self.lut.alpha + self.lut.offset
+            let sum = hsum128_ps_sse(_mm_cvtepi32_ps(sum));
+            sum * self.lut.alpha + self.lut.offset
         }
     }
 }
@@ -62,4 +63,10 @@ impl<'a> From<CompressedLookupTable<'a>> for SseScorer<'a> {
     fn from(lut: CompressedLookupTable<'a>) -> Self {
         Self { lut }
     }
+}
+
+unsafe fn hsum128_ps_sse(x: __m128) -> f32 {
+    let x64: __m128 = _mm_add_ps(x, _mm_movehl_ps(x, x));
+    let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
+    _mm_cvtss_f32(x32)
 }
