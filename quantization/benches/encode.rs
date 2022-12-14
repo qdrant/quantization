@@ -134,12 +134,12 @@ fn encode_bench(c: &mut Criterion) {
 
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-    let i8_query: Vec<i8> = I8EncodedVectors::encode_query(&query);
+    let encoded_query = I8EncodedVectors::encode_query(&query);
 
     group.bench_function("score all i8", |b| {
         b.iter(|| {
             for i in 0..vectors_count {
-                i8_encoded.score_point_dot_sse(&i8_query, i);
+                i8_encoded.score_point_dot_sse(&encoded_query, i);
             }
         });
     });
@@ -176,7 +176,7 @@ fn encode_bench(c: &mut Criterion) {
     group.bench_function("score random access i8", |b| {
         b.iter(|| {
             for &i in &permutation {
-                i8_encoded.score_point_dot_sse(&i8_query, i);
+                i8_encoded.score_point_dot_sse(&encoded_query, i);
             }
         });
     });
