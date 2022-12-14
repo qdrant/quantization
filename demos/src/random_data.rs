@@ -1,6 +1,6 @@
 mod utils;
 
-use quantization::encoded_vectors::EncodedVectors;
+use quantization::i8_encoder::I8EncodedVectors;
 use rand::Rng;
 
 use crate::utils::euclid_similarity;
@@ -18,12 +18,10 @@ fn main() {
     }
 
     let timer = std::time::Instant::now();
-    let chunks = EncodedVectors::create_dim_partition(vector_dim, 1);
-    let encoder = EncodedVectors::new(
+    let encoder = I8EncodedVectors::new(
         vector_data.iter().map(|v| v.as_slice()),
         vectors_count,
         vector_dim,
-        &chunks,
     )
     .unwrap();
     println!("encoding time: {}ms", timer.elapsed().as_millis());

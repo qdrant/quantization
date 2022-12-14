@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer, sse_scorer::SseScorer};
+use quantization::i8_encoder::I8EncodedVectors;
 use rand::Rng;
 
 use std::arch::x86_64::*;
@@ -10,6 +10,12 @@ use std::arch::x86_64::*;
 unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
     let x128: __m128 = _mm_add_ps(_mm256_extractf128_ps(x, 1), _mm256_castps256_ps128(x));
     let x64: __m128 = _mm_add_ps(x128, _mm_movehl_ps(x128, x128));
+    let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
+    _mm_cvtss_f32(x32)
+}
+
+unsafe fn hsum128_ps_sse(x: __m128) -> f32 {
+    let x64: __m128 = _mm_add_ps(x, _mm_movehl_ps(x, x));
     let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
     _mm_cvtss_f32(x32)
 }
@@ -60,68 +66,80 @@ pub(crate) unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
     result
 }
 
+pub(crate) unsafe fn dot_similarity_sse(
+    v1: &[f32],
+    v2: &[f32],
+) -> f32 {
+    let n = v1.len();
+    let m = n - (n % 16);
+    let mut ptr1: *const f32 = v1.as_ptr();
+    let mut ptr2: *const f32 = v2.as_ptr();
+    let mut sum128_1: __m128 = _mm_setzero_ps();
+    let mut sum128_2: __m128 = _mm_setzero_ps();
+    let mut sum128_3: __m128 = _mm_setzero_ps();
+    let mut sum128_4: __m128 = _mm_setzero_ps();
+
+    let mut i: usize = 0;
+    while i < m {
+        sum128_1 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(ptr1), _mm_loadu_ps(ptr2)), sum128_1);
+
+        sum128_2 = _mm_add_ps(
+            _mm_mul_ps(_mm_loadu_ps(ptr1.add(4)), _mm_loadu_ps(ptr2.add(4))),
+            sum128_2,
+        );
+
+        sum128_3 = _mm_add_ps(
+            _mm_mul_ps(_mm_loadu_ps(ptr1.add(8)), _mm_loadu_ps(ptr2.add(8))),
+            sum128_3,
+        );
+
+        sum128_4 = _mm_add_ps(
+            _mm_mul_ps(_mm_loadu_ps(ptr1.add(12)), _mm_loadu_ps(ptr2.add(12))),
+            sum128_4,
+        );
+
+        ptr1 = ptr1.add(16);
+        ptr2 = ptr2.add(16);
+        i += 16;
+    }
+
+    let mut result = hsum128_ps_sse(sum128_1)
+        + hsum128_ps_sse(sum128_2)
+        + hsum128_ps_sse(sum128_3)
+        + hsum128_ps_sse(sum128_4);
+    for i in 0..n - m {
+        result += (*ptr1.add(i)) * (*ptr2.add(i));
+    }
+    result
+}
+
+
 fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
     let vectors_count = 100_000;
-    let vector_dim = 64;
+    let vector_dim = 128;
     let mut rng = rand::thread_rng();
-    let mut list: Vec<Vec<f32>> = Vec::new();
+    let mut list: Vec<f32> = Vec::new();
     for _ in 0..vectors_count {
         let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-        list.push(vector);
+        list.extend_from_slice(&vector);
     }
 
-    let chunks = EncodedVectors::create_dim_partition(vector_dim, 1);
-
-    group.bench_function("encode", |b| {
-        b.iter(|| {
-            EncodedVectors::new(
-                list.iter().map(|v| v.as_slice()),
-                vectors_count,
-                vector_dim,
-                &chunks,
-            )
-        });
-    });
-
-    let encoder = EncodedVectors::new(
-        list.iter().map(|v| v.as_slice()),
+    let i8_encoded = I8EncodedVectors::new(
+        (0..vectors_count).into_iter().map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         vectors_count,
         vector_dim,
-        &chunks,
-    )
-    .unwrap();
+    ).unwrap();
+
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-    group.bench_function("score all quantized", |b| {
+    let i8_query: Vec<i8> = I8EncodedVectors::encode_query(&query);
+
+    group.bench_function("score all i8", |b| {
         b.iter(|| {
-            let scorer: SimpleScorer = encoder.scorer(&query, metric);
             for i in 0..vectors_count {
-                scorer.score_point(i);
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    {
-        group.bench_function("score all quantized SSE", |b| {
-            b.iter(|| {
-                let scorer: SseScorer = encoder.scorer(&query, metric);
-                for i in 0..vectors_count {
-                    scorer.score_point(i);
-                }
-            });
-        });
-    }
-
-    group.bench_function("score all original", |b| {
-        b.iter(|| {
-            for v in &list {
-                let mut _sum = 0.0;
-                for i in 0..vector_dim {
-                    _sum += query[i] * v[i];
-                }
+                i8_encoded.score_point_dot_sse(&i8_query, i);
             }
         });
     });
@@ -131,8 +149,21 @@ fn encode_bench(c: &mut Criterion) {
         if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
             group.bench_function("score all avx", |b| {
                 b.iter(|| unsafe {
-                    for v in &list {
-                        dot_avx(&query, v);
+                    for i in 0..vectors_count {
+                        dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                    }
+                });
+            });
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+            group.bench_function("score all sse", |b| {
+                b.iter(|| unsafe {
+                    for i in 0..vectors_count {
+                        dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
                     }
                 });
             });
@@ -142,35 +173,10 @@ fn encode_bench(c: &mut Criterion) {
     let permutor = Permutor::new(vectors_count as u64);
     let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
 
-    group.bench_function("score random access quantized", |b| {
-        b.iter(|| {
-            let scorer: SimpleScorer = encoder.scorer(&query, metric);
-            for &i in &permutation {
-                scorer.score_point(i);
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    {
-        group.bench_function("score random access quantized SSE", |b| {
-            b.iter(|| {
-                let scorer: SseScorer = encoder.scorer(&query, metric);
-                for &i in &permutation {
-                    scorer.score_point(i);
-                }
-            });
-        });
-    }
-
-    group.bench_function("score random access original", |b| {
+    group.bench_function("score random access i8", |b| {
         b.iter(|| {
             for &i in &permutation {
-                let mut _sum = 0.0;
-                let v = &list[i];
-                for i in 0..vector_dim {
-                    _sum += query[i] * v[i];
-                }
+                i8_encoded.score_point_dot_sse(&i8_query, i);
             }
         });
     });
@@ -181,8 +187,20 @@ fn encode_bench(c: &mut Criterion) {
             group.bench_function("score random access avx", |b| {
                 b.iter(|| unsafe {
                     for &i in &permutation {
-                        let v = &list[i];
-                        dot_avx(&query, v);
+                        dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                    }
+                });
+            });
+        }
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+            group.bench_function("score random access sse", |b| {
+                b.iter(|| unsafe {
+                    for &i in &permutation {
+                        dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
                     }
                 });
             });

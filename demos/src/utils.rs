@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
+use quantization::i8_encoder::I8EncodedVectors;
 
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct Score {
@@ -79,7 +79,7 @@ pub fn run_knn_queries<'a, I, F, M>(
     vectors_count: usize,
     queries: I,
     orig_data: F,
-    encoded_data: &EncodedVectors,
+    encoded_data: &I8EncodedVectors,
     metric: M,
 ) -> (f32, f32, f32)
 where
@@ -92,13 +92,13 @@ where
     let mut same_100 = 0.0;
     let mut queries_count = 0;
     for query in queries {
+        let query_u8 = I8EncodedVectors::encode_query(query);
         queries_count += 1;
-        let scorer: SimpleScorer = encoded_data.scorer(&query, &metric);
         let mut scores_orig: Vec<Score> = Vec::new();
         let mut scores_encoded: Vec<Score> = Vec::new();
         for index in 0..vectors_count {
             let distance = metric(&query, orig_data(index));
-            let encoded_distance = scorer.score_point(index);
+            let encoded_distance = encoded_data.score_point_dot_sse(&query_u8, index);
             scores_orig.push(Score {
                 index,
                 score: distance,
