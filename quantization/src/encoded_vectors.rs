@@ -57,6 +57,7 @@ impl EncodedVectors {
         &self.data[index * self.vector_size..(index + 1) * self.vector_size]
     }
 
+    #[inline]
     pub fn get_ptr(&self, index: usize) -> *const u8 {
         unsafe { self.data.as_ptr().add(index * self.vector_size) }
     }
@@ -197,6 +198,12 @@ impl<'a> CompressedLookupTable<'a> {
     where
         M: Fn(&[f32], &[f32]) -> f32,
     {
+        struct ChunkDistances {
+            pub alpha: u32,
+            pub distances: Vec<u8>,
+        }
+        let mut chunk_distances: Vec<ChunkDistances> = vec![];
+
         let mut centroid_distances =
             Vec::with_capacity(crate::CENTROIDS_COUNT * encoded_vectors.centroids.len());
         let mut alphas = Vec::with_capacity(encoded_vectors.centroids.len());
@@ -230,10 +237,18 @@ impl<'a> CompressedLookupTable<'a> {
                 .map(|&d| ((d - offset) / alpha) as u8)
                 .collect::<Vec<_>>();
 
-            centroid_distances.extend_from_slice(&((alpha * 10_000.) as u32).to_ne_bytes());
-            centroid_distances.extend_from_slice(&byte_distances);
+            chunk_distances.push(ChunkDistances {
+                alpha: (alpha * 10_000.) as u32,
+                distances: byte_distances,
+            });
             alphas.push(alpha);
             total_offset += offset;
+        }
+        for pair in chunk_distances.as_slice().chunks_exact(2) {
+            centroid_distances.extend_from_slice(&pair[0].alpha.to_ne_bytes());
+            centroid_distances.extend_from_slice(&pair[1].alpha.to_ne_bytes());
+            centroid_distances.extend_from_slice(&pair[0].distances);
+            centroid_distances.extend_from_slice(&pair[1].distances);
         }
         Self {
             encoded_vectors,
