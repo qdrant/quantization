@@ -5,7 +5,7 @@ pub const ALPHA: f32 = 1.0 / 127.0;
 pub const OFFSET: f32 = -1.0;
 
 pub struct I8EncodedVectors {
-    pub encoded_vectors: Vec<i8>,
+    pub encoded_vectors: Vec<u8>,
     pub dim: usize,
     pub actual_dim: usize,
 }
@@ -19,7 +19,8 @@ impl I8EncodedVectors {
         let mut encoded_vectors = Vec::with_capacity(vectors_count * dim);
         for vector in orig_data {
             for &value in vector {
-                encoded_vectors.push(Self::f32_to_i8(value));
+                let endoded = Self::f32_to_u8(value);
+                encoded_vectors.push(endoded);
             }
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
@@ -35,7 +36,7 @@ impl I8EncodedVectors {
         })
     }
 
-    pub fn f32_to_i8(i: f32) -> i8 {
+    pub fn f32_to_u8(i: f32) -> u8 {
         let i = (i - OFFSET) / ALPHA;
         let i = if i > 255.0 {
             255.0
@@ -44,14 +45,14 @@ impl I8EncodedVectors {
         } else {
             i
         };
-        i as i8
+        i as u8
     }
 
-    pub fn encode_query(query: &[f32]) -> Vec<i8> {
-        query.iter().map(|&v| Self::f32_to_i8(v)).collect()
+    pub fn encode_query(query: &[f32]) -> Vec<u8> {
+        query.iter().map(|&v| Self::f32_to_u8(v)).collect()
     }
 
-    pub fn score_point_dot_sse(&self, query: &[i8], i: usize) -> f32 {
+    pub fn score_point_dot_sse(&self, query: &[u8], i: usize) -> f32 {
         unsafe {
             let mut v_ptr = self.encoded_vectors.as_ptr().add(i * self.dim) as *const __m128i;
             let mut q_ptr = query.as_ptr() as *const __m128i;
