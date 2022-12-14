@@ -10,7 +10,7 @@ use crate::utils::euclid_similarity;
 
 fn main() {
     // generate vector data and query
-    let vectors_count = 100;
+    let vectors_count = 128;
     let vector_dim = 64;
     let error = vector_dim as f32 * 0.1;
 
@@ -35,7 +35,7 @@ fn main() {
     .unwrap();
 
     // Third step, create lookup table - LUT. That's an encoding of the query
-    let scorer: SimpleScorer = encoded.scorer(&query, euclid_similarity);
+    let mut scorer: SseScorer = encoded.scorer(&query, euclid_similarity);
 
     // score query
     for i in 0..vectors_count {
@@ -61,5 +61,14 @@ fn main() {
         let score = encoded.score_between_points(point_id, i, euclid_similarity);
         let orginal_score = euclid_similarity(&vector_data[point_id], &vector_data[i]);
         assert!((score - orginal_score).abs() < error);
+    }
+
+    // batched score
+    let point_ids: Vec<usize> = (0..vectors_count).collect();
+    let mut scores: Vec<f32> = vec![0.0; vectors_count];
+    scorer.score_points(&point_ids, &mut scores);
+    for i in 0..vectors_count {
+        let orginal_score = euclid_similarity(&query, &vector_data[i]);
+        assert!((orginal_score - scores[i]).abs() < error);
     }
 }
