@@ -1,4 +1,4 @@
-use crate::{encoded_vectors::CompressedLookupTable, scorer::Scorer};
+use crate::{encoded_vectors::CompressedLookupTable, scorer::Scorer, CENTROIDS_COUNT};
 use std::arch::x86_64::*;
 
 pub struct SseScorer<'a> {
@@ -46,86 +46,134 @@ impl Scorer for SseScorer<'_> {
             let vector_size = self.vector_size;
             let mut lut_ptr = self.lut.centroid_distances.as_ptr();
 
-            const CHUNK_SIZE: usize = 16;
-
-            let distances_mask = _mm_set_epi16(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+            let distances_mask = _mm_set_epi32(0xFF, 0xFF, 0xFF, 0xFF);
             let low_4bits_mask = _mm_set1_epi8(0x0F);
             for (point_ids, scores) in points
-                .chunks_exact(CHUNK_SIZE)
-                .zip(scores.chunks_exact_mut(CHUNK_SIZE))
+                .chunks_exact(CENTROIDS_COUNT)
+                .zip(scores.chunks_exact_mut(CENTROIDS_COUNT))
             {
-                for i in 0..CHUNK_SIZE {
-                    std::ptr::copy_nonoverlapping(
-                        self.lut.encoded_vectors.get_ptr(point_ids[i]),
-                        self.points_data.as_mut_ptr().add(i * vector_size),
-                        vector_size);
-                }
-                let mut points_ptr = self.points_data.as_ptr() as *const i8;
-
                 let mut sum1: __m128i = _mm_setzero_si128();
                 let mut sum2: __m128i = _mm_setzero_si128();
                 let mut sum3: __m128i = _mm_setzero_si128();
                 let mut sum4: __m128i = _mm_setzero_si128();
-                for _ in 0..vector_size {
-                    let alpha1 = *(lut_ptr as *const i32);
-                    lut_ptr = lut_ptr.add(4);
-                    let lut1 = _mm_loadu_si128(lut_ptr as *const __m128i);
-                    lut_ptr = lut_ptr.add(16);
 
-                    let alpha2 = *(lut_ptr as *const i32);
-                    lut_ptr = lut_ptr.add(4);
-                    let lut2 = _mm_loadu_si128(lut_ptr as *const __m128i);
-                    lut_ptr = lut_ptr.add(16);
+                const SUBVECTOR_SIZE: usize = 32;
+                for sv in 0..vector_size / SUBVECTOR_SIZE {
+                    for i in 0..CENTROIDS_COUNT {
+                        std::ptr::copy_nonoverlapping(
+                            self.lut.encoded_vectors.get_ptr(point_ids[i]),
+                            self.points_data
+                                .as_mut_ptr()
+                                .add(i * vector_size + sv * SUBVECTOR_SIZE),
+                            SUBVECTOR_SIZE,
+                        );
+                    }
 
-                    let codes = _mm_set_epi8(
-                        *points_ptr,
-                        *points_ptr.add(vector_size),
-                        *points_ptr.add(2 * vector_size),
-                        *points_ptr.add(3 * vector_size),
-                        *points_ptr.add(4 * vector_size),
-                        *points_ptr.add(5 * vector_size),
-                        *points_ptr.add(6 * vector_size),
-                        *points_ptr.add(7 * vector_size),
-                        *points_ptr.add(8 * vector_size),
-                        *points_ptr.add(9 * vector_size),
-                        *points_ptr.add(10 * vector_size),
-                        *points_ptr.add(11 * vector_size),
-                        *points_ptr.add(12 * vector_size),
-                        *points_ptr.add(13 * vector_size),
-                        *points_ptr.add(14 * vector_size),
-                        *points_ptr.add(15 * vector_size),
-                    );
+                    let mut points_ptr = self.points_data.as_ptr() as *const i8;
+                    for _ in 0..SUBVECTOR_SIZE {
+                        let alpha1 = *(lut_ptr as *const i32);
+                        lut_ptr = lut_ptr.add(4);
+                        let lut1 = _mm_loadu_si128(lut_ptr as *const __m128i);
+                        lut_ptr = lut_ptr.add(16);
 
-                    let codes_low = _mm_and_si128(codes, low_4bits_mask);
-                    let alpha2 = _mm_set1_epi16(alpha2 as i16);
-                    let dists = _mm_shuffle_epi8(lut2, codes_low);
-                    let dists_low = _mm_and_si128(dists, distances_mask);
-                    let dists_low = _mm_mullo_epi16(dists_low, alpha2);
-                    sum4 = _mm_adds_epu16(sum4, dists_low);
-                    let dists_high = _mm_srli_epi16(dists, 8);
-//                    let dists_high = _mm_and_si128(dists, distances_mask);
-                    let dists_high = _mm_mullo_epi16(dists_high, alpha2);
-                    sum3 = _mm_adds_epu16(sum3, dists_high);
+                        let alpha2 = *(lut_ptr as *const i32);
+                        lut_ptr = lut_ptr.add(4);
+                        let lut2 = _mm_loadu_si128(lut_ptr as *const __m128i);
+                        lut_ptr = lut_ptr.add(16);
 
-                    let codes_shft = _mm_srli_epi16(codes, 4);
-                    let codes_high = _mm_and_si128(codes_shft, low_4bits_mask);
-                    let alpha1 = _mm_set1_epi16(alpha1 as i16);
-                    let dists = _mm_shuffle_epi8(lut1, codes_high);
-                    let dists_low = _mm_and_si128(dists, distances_mask);
-                    let dists_low = _mm_mullo_epi16(dists_low, alpha1);
-                    sum2 = _mm_adds_epu16(sum2, dists_low);
-                    let dists_high = _mm_srli_epi16(dists, 8);
-//                    let dists_high = _mm_and_si128(dists, distances_mask);
-                    let dists_high = _mm_mullo_epi16(dists_high, alpha1);
-                    sum1 = _mm_adds_epu16(sum1, dists_high);
+                        let codes = _mm_set_epi8(
+                            *points_ptr,
+                            *points_ptr.add(SUBVECTOR_SIZE),
+                            *points_ptr.add(2 * SUBVECTOR_SIZE),
+                            *points_ptr.add(3 * SUBVECTOR_SIZE),
+                            *points_ptr.add(4 * SUBVECTOR_SIZE),
+                            *points_ptr.add(5 * SUBVECTOR_SIZE),
+                            *points_ptr.add(6 * SUBVECTOR_SIZE),
+                            *points_ptr.add(7 * SUBVECTOR_SIZE),
+                            *points_ptr.add(8 * SUBVECTOR_SIZE),
+                            *points_ptr.add(9 * SUBVECTOR_SIZE),
+                            *points_ptr.add(10 * SUBVECTOR_SIZE),
+                            *points_ptr.add(11 * SUBVECTOR_SIZE),
+                            *points_ptr.add(12 * SUBVECTOR_SIZE),
+                            *points_ptr.add(13 * SUBVECTOR_SIZE),
+                            *points_ptr.add(14 * SUBVECTOR_SIZE),
+                            *points_ptr.add(15 * SUBVECTOR_SIZE),
+                        );
 
-                    points_ptr = points_ptr.add(1);
+                        let codes_low = _mm_and_si128(codes, low_4bits_mask);
+                        let alpha2 = _mm_set1_epi32(alpha2);
+                        let dists = _mm_shuffle_epi8(lut2, codes_low);
+
+                        let dists_part = _mm_and_si128(dists, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha2);
+                        sum1 = _mm_adds_epu16(sum1, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 8);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha2);
+                        sum2 = _mm_adds_epu16(sum2, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 16);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha2);
+                        sum3 = _mm_adds_epu16(sum3, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 24);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha2);
+                        sum4 = _mm_adds_epu16(sum4, dists_part);
+
+                        let codes_shft = _mm_srli_epi16(codes, 4);
+                        let codes_high = _mm_and_si128(codes_shft, low_4bits_mask);
+                        let alpha1 = _mm_set1_epi32(alpha1);
+                        let dists = _mm_shuffle_epi8(lut1, codes_high);
+
+                        let dists_part = _mm_and_si128(dists, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha1);
+                        sum1 = _mm_adds_epu16(sum1, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 8);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha1);
+                        sum2 = _mm_adds_epu16(sum2, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 16);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha1);
+                        sum3 = _mm_adds_epu16(sum3, dists_part);
+
+                        let dists_part = _mm_srli_epi32(dists, 24);
+                        let dists_part = _mm_and_si128(dists_part, distances_mask);
+                        let dists_part = _mm_mullo_epi16(dists_part, alpha1);
+                        sum4 = _mm_adds_epu16(sum4, dists_part);
+
+                        points_ptr = points_ptr.add(1);
+                    }
                 }
 
-                let sum = hsum128_ps_sse(_mm_cvtepi32_ps(sum1)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum2)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum3)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum4));
-                for j in 0..CHUNK_SIZE {
-                    scores[j] = sum * self.lut.alpha + self.lut.offset;
-                }
+                let sum1 = _mm_cvtepi32_ps(sum1);
+                scores[0] = f32::from_bits(_mm_extract_ps(sum1, 0) as u32) * self.lut.alpha + self.lut.offset;
+                scores[1] = f32::from_bits(_mm_extract_ps(sum1, 1) as u32) * self.lut.alpha + self.lut.offset;
+                scores[2] = f32::from_bits(_mm_extract_ps(sum1, 2) as u32) * self.lut.alpha + self.lut.offset;
+                scores[3] = f32::from_bits(_mm_extract_ps(sum1, 3) as u32) * self.lut.alpha + self.lut.offset;
+
+                let sum2 = _mm_cvtepi32_ps(sum2);
+                scores[4] = f32::from_bits(_mm_extract_ps(sum2, 0) as u32) * self.lut.alpha + self.lut.offset;
+                scores[5] = f32::from_bits(_mm_extract_ps(sum2, 1) as u32) * self.lut.alpha + self.lut.offset;
+                scores[6] = f32::from_bits(_mm_extract_ps(sum2, 2) as u32) * self.lut.alpha + self.lut.offset;
+                scores[7] = f32::from_bits(_mm_extract_ps(sum2, 3) as u32) * self.lut.alpha + self.lut.offset;
+
+                let sum3 = _mm_cvtepi32_ps(sum3);
+                scores[8] = f32::from_bits(_mm_extract_ps(sum3, 0) as u32) * self.lut.alpha + self.lut.offset;
+                scores[9] = f32::from_bits(_mm_extract_ps(sum3, 1) as u32) * self.lut.alpha + self.lut.offset;
+                scores[10] = f32::from_bits(_mm_extract_ps(sum3, 2) as u32) * self.lut.alpha + self.lut.offset;
+                scores[11] = f32::from_bits(_mm_extract_ps(sum3, 3) as u32) * self.lut.alpha + self.lut.offset;
+            
+                let sum4 = _mm_cvtepi32_ps(sum4);
+                scores[12] = f32::from_bits(_mm_extract_ps(sum4, 0) as u32) * self.lut.alpha + self.lut.offset;
+                scores[13] = f32::from_bits(_mm_extract_ps(sum4, 1) as u32) * self.lut.alpha + self.lut.offset;
+                scores[14] = f32::from_bits(_mm_extract_ps(sum4, 2) as u32) * self.lut.alpha + self.lut.offset;
+                scores[15] = f32::from_bits(_mm_extract_ps(sum4, 3) as u32) * self.lut.alpha + self.lut.offset;
             }
         }
     }
@@ -139,10 +187,4 @@ impl<'a> From<CompressedLookupTable<'a>> for SseScorer<'a> {
             lut,
         }
     }
-}
-
-unsafe fn hsum128_ps_sse(x: __m128) -> f32 {
-    let x64: __m128 = _mm_add_ps(x, _mm_movehl_ps(x, x));
-    let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
-    _mm_cvtss_f32(x32)
 }
