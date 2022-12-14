@@ -57,6 +57,10 @@ impl EncodedVectors {
         &self.data[index * self.vector_size..(index + 1) * self.vector_size]
     }
 
+    pub fn get_ptr(&self, index: usize) -> *const u8 {
+        unsafe { self.data.as_ptr().add(index * self.vector_size) }
+    }
+
     pub fn data_size(&self) -> usize {
         self.data.len()
     }

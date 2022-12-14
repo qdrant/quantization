@@ -1,7 +1,10 @@
 mod utils;
 
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
-use rand::Rng;
+use quantization::{
+    encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer,
+    sse_scorer::SseScorer,
+};
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::utils::euclid_similarity;
 
@@ -11,7 +14,7 @@ fn main() {
     let vector_dim = 64;
     let error = vector_dim as f32 * 0.1;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = StdRng::seed_from_u64(42);
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
     for _ in 0..vectors_count {
         let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();

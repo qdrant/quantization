@@ -1,6 +1,9 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer, sse_scorer::SseScorer};
+use quantization::{
+    encoded_vectors::EncodedVectors, lut16_2_scorer, lut16_scorer, scorer::Scorer,
+    simple_scorer::SimpleScorer, sse_scorer::SseScorer,
+};
 use rand::Rng;
 
 use std::arch::x86_64::*;
@@ -63,37 +66,104 @@ pub(crate) unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
 fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
-    let vectors_count = 100_000;
-    let vector_dim = 64;
+    let vectors_count = 320_000;
+    const DIM: usize = 16;
     let mut rng = rand::thread_rng();
-    let mut list: Vec<Vec<f32>> = Vec::new();
+    let mut list: Vec<f32> = Vec::new();
     for _ in 0..vectors_count {
-        let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-        list.push(vector);
+        let vector: Vec<f32> = (0..DIM).map(|_| rng.gen()).collect();
+        list.extend_from_slice(&vector);
     }
 
-    let chunks = EncodedVectors::create_dim_partition(vector_dim, 1);
-
-    group.bench_function("encode", |b| {
-        b.iter(|| {
-            EncodedVectors::new(
-                list.iter().map(|v| v.as_slice()),
-                vectors_count,
-                vector_dim,
-                &chunks,
-            )
-        });
-    });
+    let chunks = EncodedVectors::create_dim_partition(DIM, 1);
 
     let encoder = EncodedVectors::new(
-        list.iter().map(|v| v.as_slice()),
+        (0..vectors_count)
+            .into_iter()
+            .map(|i| &list[DIM * i..DIM * (i + 1)]),
         vectors_count,
-        vector_dim,
+        DIM,
         &chunks,
     )
     .unwrap();
     let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
-    let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
+    let query: Vec<f32> = (0..DIM).map(|_| rng.gen()).collect();
+
+    let permutor = Permutor::new(vectors_count as u64);
+    let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
+
+    const WINDOW_SIZE: usize = 32;
+    group.bench_function("Quantized simple bucket score", |b| {
+        let mut scores = vec![0.0f32; WINDOW_SIZE];
+        b.iter(|| {
+            let mut scorer: SimpleScorer = encoder.scorer(&query, metric);
+            for window in permutation.as_slice().chunks_exact(WINDOW_SIZE) {
+                scorer.score_points(window, &mut scores);
+            }
+        });
+    });
+
+    /*
+    group.bench_function("Quantized SSE one-by-one bucket score", |b| {
+        let mut scores = vec![0.0f32; WINDOW_SIZE];
+        b.iter(|| {
+            let scorer: SseScorer = encoder.scorer(&query, metric);
+            for window in permutation.as_slice().chunks_exact(WINDOW_SIZE) {
+                for i in 0..WINDOW_SIZE {
+                    scores[i] = scorer.score_point(window[i]);
+                }
+            }
+        });
+    });
+    */
+
+    group.bench_function("Quantized SSE bucket score", |b| {
+        let mut scores = vec![0.0f32; WINDOW_SIZE];
+        b.iter(|| {
+            let mut scorer: SseScorer = encoder.scorer(&query, metric);
+            for window in permutation.as_slice().chunks_exact(WINDOW_SIZE) {
+                scorer.score_points(window, &mut scores);
+            }
+        });
+    });
+
+    group.bench_function("AVX bucket score", |b| {
+        let mut scores = vec![0.0f32; WINDOW_SIZE];
+        b.iter(|| unsafe {
+            for window in permutation.as_slice().chunks_exact(WINDOW_SIZE) {
+                for (i, &v) in window.iter().enumerate() {
+                    scores[i] = dot_avx(&query, &list[DIM * v..DIM * (v + 1)]);
+                }
+            }
+        });
+    });
+
+    group.bench_function("Original bucket score", |b| {
+        let mut scores = vec![0.0f32; WINDOW_SIZE];
+        b.iter(|| {
+            for window in permutation.as_slice().chunks_exact(WINDOW_SIZE) {
+                for (i, &v) in window.iter().enumerate() {
+                    scores[i] = 0.0;
+                    for j in 0..DIM {
+                        scores[i] += query[j] * list[DIM * v + j];
+                    }
+                }
+            }
+        });
+    });
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        group.bench_function("score random access quantized LUT16", |b| {
+            b.iter(|| {
+                let scorer: lut16_2_scorer::SseScorer = encoder.scorer(&query, metric);
+                for &i in &permutation {
+                    scorer.score_point(i);
+                }
+            });
+        });
+    }
+
     group.bench_function("score all quantized", |b| {
         b.iter(|| {
             let scorer: SimpleScorer = encoder.scorer(&query, metric);
@@ -117,10 +187,10 @@ fn encode_bench(c: &mut Criterion) {
 
     group.bench_function("score all original", |b| {
         b.iter(|| {
-            for v in &list {
+            for i in 0..vectors_count {
                 let mut _sum = 0.0;
-                for i in 0..vector_dim {
-                    _sum += query[i] * v[i];
+                for j in 0..DIM {
+                    _sum += query[j] * list[DIM * i + j];
                 }
             }
         });
@@ -131,16 +201,13 @@ fn encode_bench(c: &mut Criterion) {
         if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
             group.bench_function("score all avx", |b| {
                 b.iter(|| unsafe {
-                    for v in &list {
-                        dot_avx(&query, v);
+                    for i in 0..vectors_count {
+                        dot_avx(&query, &list[DIM * i..DIM * (i + 1)]);
                     }
                 });
             });
         }
     }
-
-    let permutor = Permutor::new(vectors_count as u64);
-    let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
 
     group.bench_function("score random access quantized", |b| {
         b.iter(|| {
@@ -167,9 +234,8 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             for &i in &permutation {
                 let mut _sum = 0.0;
-                let v = &list[i];
-                for i in 0..vector_dim {
-                    _sum += query[i] * v[i];
+                for j in 0..DIM {
+                    _sum += query[j] * list[DIM * i + j];
                 }
             }
         });
@@ -181,13 +247,34 @@ fn encode_bench(c: &mut Criterion) {
             group.bench_function("score random access avx", |b| {
                 b.iter(|| unsafe {
                     for &i in &permutation {
-                        let v = &list[i];
-                        dot_avx(&query, v);
+                        dot_avx(&query, &list[DIM * i..DIM * (i + 1)]);
                     }
                 });
             });
         }
     }
+
+    group.bench_function("copy mem", |b| {
+        let mut mem = vec![0u8; 16 * DIM];
+        let mut mem_t = vec![0u8; 16 * DIM];
+        b.iter(|| unsafe {
+            for window in permutation.as_slice().chunks_exact(16) {
+                for (j, &i) in window.iter().enumerate() {
+                    let v = encoder.get(i);
+                    std::ptr::copy(
+                        encoder.get(i).as_ptr(),
+                        mem.as_mut_ptr().add(j * DIM / 2),
+                        v.len(),
+                    );
+                }
+                for i in 0..DIM {
+                    for j in 0..16 {
+                        mem_t[16 * i + j] = mem[DIM * j + i];
+                    }
+                }
+            }
+        });
+    });
 }
 
 criterion_group! {

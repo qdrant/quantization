@@ -42,30 +42,27 @@ impl Scorer for SseScorer<'_> {
 
     fn score_points(&mut self, points: &[usize], scores: &mut [f32]) {
         unsafe {
-            scores.fill(0.0);
             let vector_size = self.vector_size;
             let mut lut_ptr = self.lut.centroid_distances.as_ptr();
 
             const CHUNK_SIZE: usize = 16;
+            let mut points_ptr: [*const i8; CHUNK_SIZE] = [std::ptr::null(); CHUNK_SIZE];
 
-            let distances_mask = _mm_set_epi16(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF);
+            let distances_mask = _mm_set_epi64x(0, 0xFF);
             let low_4bits_mask = _mm_set1_epi8(0x0F);
             for (point_ids, scores) in points
                 .chunks_exact(CHUNK_SIZE)
                 .zip(scores.chunks_exact_mut(CHUNK_SIZE))
             {
                 for i in 0..CHUNK_SIZE {
-                    std::ptr::copy_nonoverlapping(
-                        self.lut.encoded_vectors.get_ptr(point_ids[i]),
-                        self.points_data.as_mut_ptr().add(i * vector_size),
-                        vector_size);
+//                    std::ptr::copy_nonoverlapping(
+//                        ,
+//                        ,
+//                        );
+                    points_ptr[i] = self.lut.encoded_vectors.get_ptr(point_ids[i]) as *const i8;
                 }
-                let mut points_ptr = self.points_data.as_ptr() as *const i8;
 
-                let mut sum1: __m128i = _mm_setzero_si128();
-                let mut sum2: __m128i = _mm_setzero_si128();
-                let mut sum3: __m128i = _mm_setzero_si128();
-                let mut sum4: __m128i = _mm_setzero_si128();
+                let mut sum: __m128i = _mm_setzero_si128();
                 for _ in 0..vector_size {
                     let alpha1 = *(lut_ptr as *const i32);
                     lut_ptr = lut_ptr.add(4);
@@ -78,51 +75,41 @@ impl Scorer for SseScorer<'_> {
                     lut_ptr = lut_ptr.add(16);
 
                     let codes = _mm_set_epi8(
-                        *points_ptr,
-                        *points_ptr.add(vector_size),
-                        *points_ptr.add(2 * vector_size),
-                        *points_ptr.add(3 * vector_size),
-                        *points_ptr.add(4 * vector_size),
-                        *points_ptr.add(5 * vector_size),
-                        *points_ptr.add(6 * vector_size),
-                        *points_ptr.add(7 * vector_size),
-                        *points_ptr.add(8 * vector_size),
-                        *points_ptr.add(9 * vector_size),
-                        *points_ptr.add(10 * vector_size),
-                        *points_ptr.add(11 * vector_size),
-                        *points_ptr.add(12 * vector_size),
-                        *points_ptr.add(13 * vector_size),
-                        *points_ptr.add(14 * vector_size),
-                        *points_ptr.add(15 * vector_size),
+                        **points_ptr.get_unchecked(0),
+                        **points_ptr.get_unchecked(1),
+                        **points_ptr.get_unchecked(2),
+                        **points_ptr.get_unchecked(3),
+                        **points_ptr.get_unchecked(4),
+                        **points_ptr.get_unchecked(5),
+                        **points_ptr.get_unchecked(6),
+                        **points_ptr.get_unchecked(7),
+                        **points_ptr.get_unchecked(8),
+                        **points_ptr.get_unchecked(9),
+                        **points_ptr.get_unchecked(10),
+                        **points_ptr.get_unchecked(11),
+                        **points_ptr.get_unchecked(12),
+                        **points_ptr.get_unchecked(13),
+                        **points_ptr.get_unchecked(14),
+                        **points_ptr.get_unchecked(15),
                     );
 
                     let codes_low = _mm_and_si128(codes, low_4bits_mask);
-                    let alpha2 = _mm_set1_epi16(alpha2 as i16);
-                    let dists = _mm_shuffle_epi8(lut2, codes_low);
-                    let dists_low = _mm_and_si128(dists, distances_mask);
-                    let dists_low = _mm_mullo_epi16(dists_low, alpha2);
-                    sum4 = _mm_adds_epu16(sum4, dists_low);
-                    let dists_high = _mm_srli_epi16(dists, 8);
-//                    let dists_high = _mm_and_si128(dists, distances_mask);
-                    let dists_high = _mm_mullo_epi16(dists_high, alpha2);
-                    sum3 = _mm_adds_epu16(sum3, dists_high);
+                    let dists2 = _mm_shuffle_epi8(lut2, codes_low);
+                    let dists2 = _mm_and_si128(dists2, distances_mask);
+                    sum = _mm_add_epi32(sum, dists2);
 
                     let codes_shft = _mm_srli_epi16(codes, 4);
                     let codes_high = _mm_and_si128(codes_shft, low_4bits_mask);
-                    let alpha1 = _mm_set1_epi16(alpha1 as i16);
-                    let dists = _mm_shuffle_epi8(lut1, codes_high);
-                    let dists_low = _mm_and_si128(dists, distances_mask);
-                    let dists_low = _mm_mullo_epi16(dists_low, alpha1);
-                    sum2 = _mm_adds_epu16(sum2, dists_low);
-                    let dists_high = _mm_srli_epi16(dists, 8);
-//                    let dists_high = _mm_and_si128(dists, distances_mask);
-                    let dists_high = _mm_mullo_epi16(dists_high, alpha1);
-                    sum1 = _mm_adds_epu16(sum1, dists_high);
+                    let dists1 = _mm_shuffle_epi8(lut1, codes_high);
+                    let dists1 = _mm_and_si128(dists1, distances_mask);
+                    sum = _mm_add_epi32(sum, dists1);
 
-                    points_ptr = points_ptr.add(1);
+                    for j in 0..CHUNK_SIZE {
+                        points_ptr[j] = points_ptr[j].add(1);
+                    }
                 }
 
-                let sum = hsum128_ps_sse(_mm_cvtepi32_ps(sum1)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum2)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum3)) + hsum128_ps_sse(_mm_cvtepi32_ps(sum4));
+                let sum = hsum128_ps_sse(_mm_cvtepi32_ps(sum));
                 for j in 0..CHUNK_SIZE {
                     scores[j] = sum * self.lut.alpha + self.lut.offset;
                 }
@@ -135,7 +122,7 @@ impl<'a> From<CompressedLookupTable<'a>> for SseScorer<'a> {
     fn from(lut: CompressedLookupTable<'a>) -> Self {
         Self {
             vector_size: lut.encoded_vectors.vector_size,
-            points_data: vec![0u8; lut.encoded_vectors.vector_size * 16],
+            points_data: vec![0u8; lut.encoded_vectors.vector_size * 8],
             lut,
         }
     }
