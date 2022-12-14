@@ -24,7 +24,8 @@ impl I8EncodedVectors {
             }
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                    encoded_vectors.push(0);
+                    let endoded = Self::f32_to_u8(0.0);
+                    encoded_vectors.push(endoded);
                 }
             }
         }
@@ -54,19 +55,27 @@ impl I8EncodedVectors {
 
     pub fn score_point_dot_sse(&self, query: &[u8], i: usize) -> f32 {
         unsafe {
-            let mut v_ptr = self.encoded_vectors.as_ptr().add(i * self.dim) as *const __m128i;
+            Self::score_point_dot_sse_impl(query, self.encoded_vectors.as_ptr().add(i * self.dim), self.dim)
+        }
+    }
+
+    fn score_point_dot_sse_impl(query: &[u8], v: *const u8, dim: usize) -> f32 {
+        unsafe {
+            let mut v_ptr = v as *const __m128i;
             let mut q_ptr = query.as_ptr() as *const __m128i;
+
             let mut sum1 = _mm_setzero_si128();
             let mut sum2 = _mm_setzero_si128();
-            let mut mul1 = _mm_setzero_si128();
-            let mut mul2 = _mm_setzero_si128();
             let mut sum3 = _mm_setzero_si128();
             let mut sum4 = _mm_setzero_si128();
+
+            let mut mul1 = _mm_setzero_si128();
+            let mut mul2 = _mm_setzero_si128();
             let mut mul3 = _mm_setzero_si128();
             let mut mul4 = _mm_setzero_si128();
             let mask_epu16 = _mm_set1_epi16(0xFF);
             let mask_epu32 = _mm_set1_epi32(0xFFFF);
-            for _ in 0..self.dim / 16 {
+            for _ in 0..dim / 16 {
                 let v = _mm_loadu_si128(v_ptr);
                 let q = _mm_loadu_si128(q_ptr);
                 v_ptr = v_ptr.add(1);
@@ -84,23 +93,23 @@ impl I8EncodedVectors {
                 mul1 = _mm_add_epi32(mul1, _mm_and_si128(m1, mask_epu32));
                 mul2 = _mm_add_epi32(mul2, _mm_srli_epi32(m1, 16));
                 
-                let v2 = _mm_and_si128(_mm_srli_epi16(v, 8), mask_epu16);
-                let q2 = _mm_and_si128(_mm_srli_epi16(q, 8), mask_epu16);
+                let v2 = _mm_srli_epi16(v, 8);
+                let q2 = _mm_srli_epi16(q, 8);
 
                 let m2 = _mm_mullo_epi16(v2, q2);
                 let s2 = _mm_adds_epu16(v2, q2);
 
-                sum3 = _mm_add_epi32(sum1, _mm_and_si128(s2, mask_epu32));
-                sum4 = _mm_add_epi32(sum2, _mm_srli_epi32(s2, 16));
+                sum3 = _mm_add_epi32(sum3, _mm_and_si128(s2, mask_epu32));
+                sum4 = _mm_add_epi32(sum4, _mm_srli_epi32(s2, 16));
 
-                mul3 = _mm_add_epi32(mul1, _mm_and_si128(m2, mask_epu32));
-                mul4 = _mm_add_epi32(mul2, _mm_srli_epi32(m2, 16));
+                mul3 = _mm_add_epi32(mul3, _mm_and_si128(m2, mask_epu32));
+                mul4 = _mm_add_epi32(mul4, _mm_srli_epi32(m2, 16));
             }
             let mul = _mm_add_epi32(_mm_add_epi32(mul1, mul2), _mm_add_epi32(mul3, mul4));
             let sum = _mm_add_epi32(_mm_add_epi32(sum1, sum2), _mm_add_epi32(sum3, sum4));
             let mul = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul));
             let sum = Self::hsum128_ps_sse(_mm_cvtepi32_ps(sum));
-            ALPHA * ALPHA * mul + ALPHA * OFFSET * sum + OFFSET * OFFSET * self.dim as f32
+            ALPHA * ALPHA * mul + ALPHA * OFFSET * sum + OFFSET * OFFSET * dim as f32
         }
     }
 
