@@ -81,3 +81,57 @@ EXPORT float impl_score_dot_avx(
     HSUM256_PS(sum_ps, sum_scalar);
     return alpha * alpha * mul_scalar + alpha * offset * sum_scalar + offset * offset * dim;
 }
+
+
+EXPORT float impl_score_dot_avx_2(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t dim,
+    float alpha,
+    float offset
+) {
+    __m256i* v_ptr = (__m256i*)vector_ptr;
+    __m256i* q_ptr = (__m256i*)query_ptr;
+
+    __m256i sum1 = _mm256_setzero_si256();
+    __m256i sum2 = _mm256_setzero_si256();
+    __m256i mul1 = _mm256_setzero_si256();
+    __m256i mul2 = _mm256_setzero_si256();
+    __m256i mask_epu16 = _mm256_set1_epi16(0xFF);
+    __m256i mask_epu32 = _mm256_set1_epi32(0xFFFF);
+    for (uint32_t _i = 0; _i < dim / 32; _i++) {
+        __m256i v = _mm256_loadu_si256(v_ptr);
+        __m256i q = _mm256_loadu_si256(q_ptr);
+        v_ptr++;
+        q_ptr++;
+
+        __m256i v1 = _mm256_and_si256(v, mask_epu16);
+        __m256i q1 = _mm256_and_si256(q, mask_epu16);
+
+        __m256i m1 = _mm256_mullo_epi16(v1, q1);
+        __m256i s1 = _mm256_adds_epu16(v1, q1);
+
+        sum1 = _mm256_add_epi32(sum1, _mm256_and_si256(s1, mask_epu32));
+        sum2 = _mm256_add_epi32(sum2, _mm256_srli_epi32(s1, 16));
+
+        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m1, mask_epu32));
+        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m1, 16));
+                
+        __m256i v2 = _mm256_srli_epi16(v, 8);
+        __m256i q2 = _mm256_srli_epi16(q, 8);
+
+        __m256i m2 = _mm256_mullo_epi16(v2, q2);
+        __m256i s2 = _mm256_adds_epu16(v2, q2);
+
+        sum1 = _mm256_add_epi32(sum1, _mm256_and_si256(s2, mask_epu32));
+        sum2 = _mm256_add_epi32(sum2, _mm256_srli_epi32(s2, 16));
+
+        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m2, mask_epu32));
+        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m2, 16));
+    }
+    __m256 mul_ps = _mm256_cvtepi32_ps(_mm256_add_epi32(mul1, mul2));
+    __m256 sum_ps = _mm256_cvtepi32_ps(_mm256_add_epi32(sum1, sum2));
+    HSUM256_PS(mul_ps, mul_scalar);
+    HSUM256_PS(sum_ps, sum_scalar);
+    return alpha * alpha * mul_scalar + alpha * offset * sum_scalar + offset * offset * dim;
+}

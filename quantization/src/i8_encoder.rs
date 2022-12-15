@@ -1,6 +1,6 @@
 use std::arch::x86_64::*;
 
-pub const ALIGHMENT: usize = 16;
+pub const ALIGHMENT: usize = 32;
 pub const ALPHA: f32 = 1.0 / 127.0;
 pub const OFFSET: f32 = -1.0;
 
@@ -296,66 +296,14 @@ impl I8EncodedVectors {
     }
 
     pub fn score_point_dot_avx(&self, query: &[u8], i: usize) -> f32 {
-        /*
         unsafe {
-            impl_score_dot_avx(
+            impl_score_dot_avx_2(
                 query.as_ptr(),
                 self.encoded_vectors.as_ptr().add(i * self.dim),
                 self.dim as u32,
                 ALPHA,
                 OFFSET,
             )
-        }*/
-        unsafe {
-            let mut v_ptr = self.encoded_vectors.as_ptr().add(i * self.dim) as *const __m128i;
-            let mut q_ptr = query.as_ptr() as *const __m128i;
-            let mut sum1 = _mm256_setzero_si256();
-            let mut sum2 = _mm256_setzero_si256();
-            let mut sum3 = _mm256_setzero_si256();
-            let mut sum4 = _mm256_setzero_si256();
-
-            let mut mul1 = _mm256_setzero_si256();
-            let mut mul2 = _mm256_setzero_si256();
-            let mut mul3 = _mm256_setzero_si256();
-            let mut mul4 = _mm256_setzero_si256();
-            let mask_epu32 = _mm256_set1_epi32(0xFFFF);
-            for _ in 0..self.dim / 32 {
-                let v1 = _mm_loadu_si128(v_ptr);
-                let q1 = _mm_loadu_si128(q_ptr);
-                v_ptr = v_ptr.add(1);
-                q_ptr = q_ptr.add(1);
-                let v2 = _mm_loadu_si128(v_ptr);
-                let q2 = _mm_loadu_si128(q_ptr);
-                v_ptr = v_ptr.add(1);
-                q_ptr = q_ptr.add(1);
-
-                let v1 = _mm256_cvtepu8_epi16(v1);
-                let q1 = _mm256_cvtepu8_epi16(q1);
-                let m1 = _mm256_mullo_epi16(v1, q1);
-                let s1 = _mm256_adds_epu16(v1, q1);
-
-                sum1 = _mm256_add_epi32(sum1, _mm256_and_si256(s1, mask_epu32));
-                sum2 = _mm256_add_epi32(sum2, _mm256_srli_epi32(s1, 16));
-
-                mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m1, mask_epu32));
-                mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m1, 16));
-
-                let v2 = _mm256_cvtepu8_epi16(v2);
-                let q2 = _mm256_cvtepu8_epi16(q2);
-                let m2 = _mm256_mullo_epi16(v2, q2);
-                let s2 = _mm256_adds_epu16(v2, q2);
-
-                sum3 = _mm256_add_epi32(sum3, _mm256_and_si256(s2, mask_epu32));
-                sum4 = _mm256_add_epi32(sum4, _mm256_srli_epi32(s2, 16));
-
-                mul3 = _mm256_add_epi32(mul3, _mm256_and_si256(m2, mask_epu32));
-                mul4 = _mm256_add_epi32(mul4, _mm256_srli_epi32(m2, 16));
-            }
-            let mul = _mm256_add_epi32(_mm256_add_epi32(mul1, mul2), _mm256_add_epi32(mul3, mul4));
-            let sum = _mm256_add_epi32(_mm256_add_epi32(sum1, sum2), _mm256_add_epi32(sum3, sum4));
-            let mul = Self::hsum256_ps_avx(_mm256_cvtepi32_ps(mul));
-            let sum = Self::hsum256_ps_avx(_mm256_cvtepi32_ps(sum));
-            ALPHA * ALPHA * mul + ALPHA * OFFSET * sum + OFFSET * OFFSET * self.dim as f32
         }
     }
 
@@ -377,6 +325,14 @@ impl I8EncodedVectors {
 
 extern {
     fn impl_score_dot_avx(
+        query_ptr: *const u8,
+        vector_ptr: *const u8,
+        dim: u32,
+        alpha: f32,
+        offset: f32,
+    ) -> f32;
+
+    fn impl_score_dot_avx_2(
         query_ptr: *const u8,
         vector_ptr: *const u8,
         dim: u32,
