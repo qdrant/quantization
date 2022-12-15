@@ -132,11 +132,18 @@ fn encode_bench(c: &mut Criterion) {
         vector_dim,
     ).unwrap();
 
-    let metric = |a: &[f32], b: &[f32]| a.iter().zip(b).map(|(a, b)| a * b).sum::<f32>();
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
     let encoded_query = I8EncodedVectors::encode_query(&query);
 
-    group.bench_function("score all i8", |b| {
+    group.bench_function("score all u8 avx", |b| {
+        b.iter(|| {
+            for i in 0..vectors_count {
+                i8_encoded.score_point_dot_avx(&encoded_query, i);
+            }
+        });
+    });
+
+    group.bench_function("score all u8 sse", |b| {
         b.iter(|| {
             for i in 0..vectors_count {
                 i8_encoded.score_point_dot_sse(&encoded_query, i);
@@ -173,7 +180,15 @@ fn encode_bench(c: &mut Criterion) {
     let permutor = Permutor::new(vectors_count as u64);
     let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
 
-    group.bench_function("score random access i8", |b| {
+    group.bench_function("score random access u8 avx", |b| {
+        b.iter(|| {
+            for &i in &permutation {
+                i8_encoded.score_point_dot_avx(&encoded_query, i);
+            }
+        });
+    });
+
+    group.bench_function("score random access u8 sse", |b| {
         b.iter(|| {
             for &i in &permutation {
                 i8_encoded.score_point_dot_sse(&encoded_query, i);
