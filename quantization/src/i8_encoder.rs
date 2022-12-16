@@ -66,10 +66,30 @@ impl I8EncodedVectors {
     }
 
     pub fn score_points_dot(&self, query: &[u8], i: &[usize], scores: &mut [f32]) {
-        self.score_points_dot_sse_32(query, i, scores)
+        self.score_points_dot_avx(query, i, scores)
     }
 
-    pub fn score_points_dot_sse_32(&self, query: &[u8], indexes: &[usize], scores: &mut [f32]) {
+    pub fn score_points_dot_avx(&self, query: &[u8], indexes: &[usize], scores: &mut [f32]) {
+        const CHUNK_SIZE: usize = 2;
+        let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
+        unsafe {
+            for (indexes, scores) in indexes.chunks_exact(CHUNK_SIZE).zip(scores.chunks_exact_mut(CHUNK_SIZE)) {
+                let v1_ptr = encoded_vectors_ptr.add(indexes[0] * self.dim);
+                let v2_ptr = encoded_vectors_ptr.add(indexes[1] * self.dim);
+                impl_score_pair_dot_avx(
+                    query.as_ptr(),
+                    v1_ptr,
+                    v2_ptr,
+                    self.dim as u32,
+                    ALPHA,
+                    OFFSET,
+                    scores.as_mut_ptr(),
+                );
+            }
+        }
+    }
+
+    pub fn score_points_dot_sse(&self, query: &[u8], indexes: &[usize], scores: &mut [f32]) {
         const CHUNK_SIZE: usize = 2;
         let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
         unsafe {
@@ -231,4 +251,14 @@ extern "C" {
         alpha: f32,
         offset: f32,
     ) -> f32;
+
+    fn impl_score_pair_dot_avx(
+        query_ptr: *const u8,
+        vector1_ptr: *const u8,
+        vector2_ptr: *const u8,
+        dim: u32,
+        alpha: f32,
+        offset: f32,
+        result: *mut f32,
+    );
 }
