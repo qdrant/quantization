@@ -1,6 +1,6 @@
 use std::arch::x86_64::*;
 
-pub const ALIGHMENT: usize = 32;
+pub const ALIGHMENT: usize = 16;
 pub const ALPHA: f32 = 1.0 / 127.0;
 pub const OFFSET: f32 = -1.0;
 
@@ -62,7 +62,7 @@ impl I8EncodedVectors {
     }
 
     pub fn score_point_dot(&self, query: &[u8], i: usize) -> f32 {
-        self.score_point_dot_sse(query, i)
+        self.score_point_dot_avx(query, i)
     }
 
     pub fn score_points_dot(&self, query: &[u8], i: &[usize], scores: &mut [f32]) {
@@ -73,7 +73,10 @@ impl I8EncodedVectors {
         const CHUNK_SIZE: usize = 2;
         let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
         unsafe {
-            for (indexes, scores) in indexes.chunks_exact(CHUNK_SIZE).zip(scores.chunks_exact_mut(CHUNK_SIZE)) {
+            for (indexes, scores) in indexes
+                .chunks_exact(CHUNK_SIZE)
+                .zip(scores.chunks_exact_mut(CHUNK_SIZE))
+            {
                 let v1_ptr = encoded_vectors_ptr.add(indexes[0] * self.dim);
                 let v2_ptr = encoded_vectors_ptr.add(indexes[1] * self.dim);
                 impl_score_pair_dot_avx(
@@ -93,7 +96,10 @@ impl I8EncodedVectors {
         const CHUNK_SIZE: usize = 2;
         let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
         unsafe {
-            for (indexes, scores) in indexes.chunks_exact(CHUNK_SIZE).zip(scores.chunks_exact_mut(CHUNK_SIZE)) {
+            for (indexes, scores) in indexes
+                .chunks_exact(CHUNK_SIZE)
+                .zip(scores.chunks_exact_mut(CHUNK_SIZE))
+            {
                 let mut q_ptr = query.as_ptr() as *const __m128i;
                 let mut v1_ptr = encoded_vectors_ptr.add(indexes[0] * self.dim) as *const __m128i;
                 let mut v2_ptr = encoded_vectors_ptr.add(indexes[1] * self.dim) as *const __m128i;
@@ -113,26 +119,26 @@ impl I8EncodedVectors {
                     {
                         let v = _mm_loadu_si128(v1_ptr);
                         v1_ptr = v1_ptr.add(1);
-    
+
                         let v1 = _mm_and_si128(v, mask_epu16);
-    
+
                         let m1 = _mm_mullo_epi16(v1, q1);
                         let s1 = _mm_adds_epu16(v1, q1);
-    
+
                         sum1 = _mm_add_epi32(sum1, _mm_and_si128(s1, mask_epu32));
                         sum1 = _mm_add_epi32(sum1, _mm_srli_epi32(s1, 16));
-    
+
                         mul1 = _mm_add_epi32(mul1, _mm_and_si128(m1, mask_epu32));
                         mul1 = _mm_add_epi32(mul1, _mm_srli_epi32(m1, 16));
 
                         let v2 = _mm_srli_epi16(v, 8);
-    
+
                         let m2 = _mm_mullo_epi16(v2, q2);
                         let s2 = _mm_adds_epu16(v2, q2);
-    
+
                         sum1 = _mm_add_epi32(sum1, _mm_and_si128(s2, mask_epu32));
                         sum1 = _mm_add_epi32(sum1, _mm_srli_epi32(s2, 16));
-    
+
                         mul1 = _mm_add_epi32(mul1, _mm_and_si128(m2, mask_epu32));
                         mul1 = _mm_add_epi32(mul1, _mm_srli_epi32(m2, 16));
                     }
@@ -140,26 +146,26 @@ impl I8EncodedVectors {
                     {
                         let v = _mm_loadu_si128(v2_ptr);
                         v2_ptr = v2_ptr.add(1);
-        
+
                         let v1 = _mm_and_si128(v, mask_epu16);
-        
+
                         let m1 = _mm_mullo_epi16(v1, q1);
                         let s1 = _mm_adds_epu16(v1, q1);
-        
+
                         sum2 = _mm_add_epi32(sum2, _mm_and_si128(s1, mask_epu32));
                         sum2 = _mm_add_epi32(sum2, _mm_srli_epi32(s1, 16));
-        
+
                         mul2 = _mm_add_epi32(mul2, _mm_and_si128(m1, mask_epu32));
                         mul2 = _mm_add_epi32(mul2, _mm_srli_epi32(m1, 16));
-        
+
                         let v2 = _mm_srli_epi16(v, 8);
-        
+
                         let m2 = _mm_mullo_epi16(v2, q2);
                         let s2 = _mm_adds_epu16(v2, q2);
-        
+
                         sum2 = _mm_add_epi32(sum2, _mm_and_si128(s2, mask_epu32));
                         sum2 = _mm_add_epi32(sum2, _mm_srli_epi32(s2, 16));
-        
+
                         mul2 = _mm_add_epi32(mul2, _mm_and_si128(m2, mask_epu32));
                         mul2 = _mm_add_epi32(mul2, _mm_srli_epi32(m2, 16));
                     }
@@ -168,8 +174,12 @@ impl I8EncodedVectors {
                 let sum1 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(sum1));
                 let mul2 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul2));
                 let sum2 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(sum2));
-                scores[0] = ALPHA * ALPHA * mul1 + ALPHA * OFFSET * sum1 + OFFSET * OFFSET * self.dim as f32;
-                scores[1] = ALPHA * ALPHA * mul2 + ALPHA * OFFSET * sum2 + OFFSET * OFFSET * self.dim as f32;
+                scores[0] = ALPHA * ALPHA * mul1
+                    + ALPHA * OFFSET * sum1
+                    + OFFSET * OFFSET * self.dim as f32;
+                scores[1] = ALPHA * ALPHA * mul2
+                    + ALPHA * OFFSET * sum2
+                    + OFFSET * OFFSET * self.dim as f32;
             }
         }
     }

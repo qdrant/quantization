@@ -28,8 +28,8 @@ EXPORT float impl_score_dot_avx(
     float alpha,
     float offset
 ) {
-    __m256i* v_ptr = (__m256i*)vector_ptr;
-    __m256i* q_ptr = (__m256i*)query_ptr;
+    const __m256i* v_ptr = (const __m256i*)vector_ptr;
+    const __m256i* q_ptr = (const __m256i*)query_ptr;
 
     __m256i sum1 = _mm256_setzero_si256();
     __m256i sum2 = _mm256_setzero_si256();
@@ -54,7 +54,7 @@ EXPORT float impl_score_dot_avx(
 
         mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m1, mask_epu32));
         mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m1, 16));
-                
+
         __m256i v2 = _mm256_srli_epi16(v, 8);
         __m256i q2 = _mm256_srli_epi16(q, 8);
 
@@ -67,6 +67,24 @@ EXPORT float impl_score_dot_avx(
         mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m2, mask_epu32));
         mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m2, 16));
     }
+
+    if (dim % 32 != 0) {
+        __m128i v_short = _mm_loadu_si128((const __m128i*)v_ptr);
+        __m128i q_short = _mm_loadu_si128((const __m128i*)q_ptr);
+
+        __m256i v1 = _mm256_cvtepu8_epi16(v_short);
+        __m256i q1 = _mm256_cvtepu8_epi16(q_short);
+
+        __m256i m1 = _mm256_mullo_epi16(v1, q1);
+        __m256i s1 = _mm256_adds_epu16(v1, q1);
+
+        sum1 = _mm256_add_epi32(sum1, _mm256_and_si256(s1, mask_epu32));
+        sum2 = _mm256_add_epi32(sum2, _mm256_srli_epi32(s1, 16));
+
+        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m1, mask_epu32));
+        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m1, 16));
+    }
+    
     __m256 mul_ps = _mm256_cvtepi32_ps(_mm256_add_epi32(mul1, mul2));
     __m256 sum_ps = _mm256_cvtepi32_ps(_mm256_add_epi32(sum1, sum2));
     HSUM256_PS(mul_ps, mul_scalar);
@@ -83,9 +101,9 @@ EXPORT void impl_score_pair_dot_avx(
     float offset,
     float* result
 ) {
-    __m256i* v1_ptr = (__m256i*)vector1_ptr;
-    __m256i* v2_ptr = (__m256i*)vector2_ptr;
-    __m256i* q_ptr = (__m256i*)query_ptr;
+    const __m256i* v1_ptr = (const __m256i*)vector1_ptr;
+    const __m256i* v2_ptr = (const __m256i*)vector2_ptr;
+    const __m256i* q_ptr = (const __m256i*)query_ptr;
 
     __m256i sum1 = _mm256_setzero_si256();
     __m256i sum2 = _mm256_setzero_si256();
@@ -153,6 +171,40 @@ EXPORT void impl_score_pair_dot_avx(
             mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m2, 16));
         }
     }
+
+    if (dim % 32 != 0) {
+        __m128i q = _mm_loadu_si128((const __m128i*)q_ptr);
+        __m256i q1 = _mm256_cvtepu8_epi16(q);
+
+        {
+            __m128i v = _mm_loadu_si128((const __m128i*)v1_ptr);
+            __m256i v1 = _mm256_cvtepu8_epi16(v);
+
+            __m256i m1 = _mm256_mullo_epi16(v1, q1);
+            __m256i s1 = _mm256_adds_epu16(v1, q1);
+
+            sum1 = _mm256_add_epi32(sum1, _mm256_and_si256(s1, mask_epu32));
+            sum1 = _mm256_add_epi32(sum1, _mm256_srli_epi32(s1, 16));
+    
+            mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(m1, mask_epu32));
+            mul1 = _mm256_add_epi32(mul1, _mm256_srli_epi32(m1, 16));
+        }
+
+        {
+            __m128i v = _mm_loadu_si128((const __m128i*)v2_ptr);
+            __m256i v1 = _mm256_cvtepu8_epi16(v);
+
+            __m256i m1 = _mm256_mullo_epi16(v1, q1);
+            __m256i s1 = _mm256_adds_epu16(v1, q1);
+
+            sum2 = _mm256_add_epi32(sum2, _mm256_and_si256(s1, mask_epu32));
+            sum2 = _mm256_add_epi32(sum2, _mm256_srli_epi32(s1, 16));
+
+            mul2 = _mm256_add_epi32(mul2, _mm256_and_si256(m1, mask_epu32));
+            mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(m1, 16));
+        }
+    }
+
     __m256 mul1_ps = _mm256_cvtepi32_ps(mul1);
     __m256 mul2_ps = _mm256_cvtepi32_ps(mul2);
     __m256 sum1_ps = _mm256_cvtepi32_ps(sum1);

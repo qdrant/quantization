@@ -89,7 +89,88 @@ impl AnnBenchmarkData {
         encoded_data
     }
 
-    pub fn test_encoded(&self, encoded: &I8EncodedVectors, similarity: fn(&[f32], &[f32]) -> f32) {
+    pub fn measure_scoring_time(
+        &self,
+        encoded: &I8EncodedVectors,
+        random_access: bool,
+        queries_count: usize,
+    ) {
+        let multiprogress = MultiProgress::new();
+        let sent_bar = multiprogress.add(ProgressBar::new(3 * queries_count as u64));
+        let progress_style = ProgressStyle::default_bar()
+            .template("{msg} [{elapsed_precise}] {wide_bar} [{per_sec:>3}] {pos}/{len} (eta:{eta})")
+            .expect("Failed to create progress style");
+        sent_bar.set_style(progress_style);
+
+        let permutation: Vec<usize> = if random_access {
+            let permutor = permutation_iterator::Permutor::new(self.vectors_count as u64);
+            permutor.map(|i| i as usize).collect()
+        } else {
+            (0..self.vectors_count).collect()
+        };
+
+        let mut scores = vec![0.0; self.vectors_count];
+        let mut timings = Vec::new();
+
+        for query in self
+            .queries
+            .rows()
+            .into_iter()
+            .take(queries_count)
+            .map(|q| q.to_slice().unwrap())
+        {
+            let timer = std::time::Instant::now();
+            let query_u8 = I8EncodedVectors::encode_query(&query);
+            for &index in &permutation {
+                scores[index] = encoded.score_point_dot(&query_u8, index);
+            }
+            timings.push(timer.elapsed().as_millis() as f64);
+            sent_bar.inc(1);
+        }
+        let avg_encoded = timings.iter().sum::<f64>() / timings.len() as f64;
+        timings.clear();
+
+        for query in self
+            .queries
+            .rows()
+            .into_iter()
+            .take(queries_count)
+            .map(|q| q.to_slice().unwrap())
+        {
+            let timer = std::time::Instant::now();
+            let query_u8 = I8EncodedVectors::encode_query(&query);
+            encoded.score_points_dot(&query_u8, &permutation, &mut scores);
+            timings.push(timer.elapsed().as_millis() as f64);
+            sent_bar.inc(1);
+        }
+        let avg_encoded_block = timings.iter().sum::<f64>() / timings.len() as f64;
+        timings.clear();
+
+        for query in self
+            .queries
+            .rows()
+            .into_iter()
+            .take(queries_count)
+            .map(|q| q.to_slice().unwrap())
+        {
+            let timer = std::time::Instant::now();
+            for &index in &permutation {
+                scores[index] = unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
+            }
+            timings.push(timer.elapsed().as_millis() as f64);
+            sent_bar.inc(1);
+        }
+        let avg_avx = timings.iter().sum::<f64>() / timings.len() as f64;
+        timings.clear();
+
+        println!("Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms", avg_avx, avg_encoded, avg_encoded_block);
+
+        sent_bar.finish();
+    }
+
+    pub fn test_knn_encoded<F>(&self, encoded: &I8EncodedVectors, postprocess: F)
+    where F: Fn(f32) -> f32
+    {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(self.queries_count as u64));
         let progress_style = ProgressStyle::default_bar()
@@ -98,8 +179,8 @@ impl AnnBenchmarkData {
         sent_bar.set_style(progress_style);
 
         let mut same_10 = 0.0;
+        let mut same_20 = 0.0;
         let mut same_30 = 0.0;
-        let mut same_100 = 0.0;
         let mut timings = Vec::new();
         for (j, query) in self
             .queries
@@ -112,11 +193,11 @@ impl AnnBenchmarkData {
             let query_u8 = I8EncodedVectors::encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let score = 1.0 - encoded.score_point_dot_sse(&query_u8, index);
+                let score = postprocess(encoded.score_point_dot(&query_u8, index));
                 //let score = 1.0 - unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
                 //let score = 1.0 - unsafe { dot_similarity_sse(&query, self.vectors.row(index).as_slice().unwrap()) };
                 let score = Score { index, score };
-                if heap.len() == 100 {
+                if heap.len() == 30 {
                     let mut top = heap.peek_mut().unwrap();
                     if top.score > score.score {
                         *top = score;
@@ -127,8 +208,8 @@ impl AnnBenchmarkData {
             }
             let knn = heap.into_sorted_vec();
             same_10 += same_count(&knn[0..10], &self.neighbors[j]) as f32;
-            same_30 += same_count(&knn[0..30], &self.neighbors[j]) as f32;
-            same_100 += same_count(&knn, &self.neighbors[j]) as f32;
+            same_20 += same_count(&knn[0..20], &self.neighbors[j]) as f32;
+            same_30 += same_count(&knn, &self.neighbors[j]) as f32;
 
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
@@ -136,12 +217,12 @@ impl AnnBenchmarkData {
         sent_bar.finish();
 
         same_10 /= self.queries_count as f32;
+        same_20 /= self.queries_count as f32;
         same_30 /= self.queries_count as f32;
-        same_100 /= self.queries_count as f32;
         println!("queries count: {}", self.queries_count);
         println!("same_10: {}", same_10);
+        println!("same_20: {}", same_20);
         println!("same_30: {}", same_30);
-        println!("same_100: {}", same_100);
         Self::print_timings(&mut timings);
     }
 
@@ -180,7 +261,6 @@ impl AnnBenchmarkData {
         println!("Max search time: {}ms", max_time);
     }
 }
-
 
 use std::arch::x86_64::*;
 
@@ -245,10 +325,7 @@ pub(crate) unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
     result
 }
 
-pub(crate) unsafe fn dot_similarity_sse(
-    v1: &[f32],
-    v2: &[f32],
-) -> f32 {
+pub(crate) unsafe fn dot_similarity_sse(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 16);
     let mut ptr1: *const f32 = v1.as_ptr();

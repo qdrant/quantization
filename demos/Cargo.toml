@@ -17,6 +17,7 @@ hdf5 = "0.8.1"
 ndarray = "0.15"
 reqwest = { version = "0.11.13", features = ["blocking"] }
 indicatif = "0.17.2"
+permutation_iterator = "0.1.2"
 
 [[bin]]
 name = "basic"

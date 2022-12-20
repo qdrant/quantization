@@ -10,5 +10,10 @@ fn main() {
     );
     data.cosine_preprocess();
     let encoded = data.encode_data();
-    data.test_encoded(&encoded, utils::dot_similarity);
+    println!("Measure scoring direct access");
+    data.measure_scoring_time(&encoded, false, data.queries_count);
+    println!("Measure scoring random access");
+    data.measure_scoring_time(&encoded, true, data.queries_count / 10);
+    println!("Estimate knn accuracy");
+    data.test_knn_encoded(&encoded, |x| 1.0 - x);
 }
