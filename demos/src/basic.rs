@@ -1,5 +1,5 @@
 mod utils;
-use quantization::i8_encoder::I8EncodedVectors;
+use quantization::encoder::EncodedVectors;
 use rand::{Rng, SeedableRng};
 
 use crate::utils::dot_similarity;
@@ -17,9 +17,9 @@ fn main() {
         vector_data.push(vector);
     }
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-    let query_u8 = I8EncodedVectors::encode_query(&query);
+    let query_u8 = EncodedVectors::encode_query(&query);
 
-    let encoded = I8EncodedVectors::new(
+    let encoded = EncodedVectors::new(
         vector_data.iter().map(|v| v.as_slice()),
         vectors_count,
         vector_dim,

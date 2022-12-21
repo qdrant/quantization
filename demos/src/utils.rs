@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use quantization::i8_encoder::I8EncodedVectors;
+use quantization::encoder::EncodedVectors;
 
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct Score {
@@ -79,7 +79,7 @@ pub fn run_knn_queries<'a, I, F, M>(
     vectors_count: usize,
     queries: I,
     orig_data: F,
-    encoded_data: &I8EncodedVectors,
+    encoded_data: &EncodedVectors,
     metric: M,
 ) -> (f32, f32, f32)
 where
@@ -92,7 +92,7 @@ where
     let mut same_100 = 0.0;
     let mut queries_count = 0;
     for query in queries {
-        let query_u8 = I8EncodedVectors::encode_query(query);
+        let query_u8 = EncodedVectors::encode_query(query);
         queries_count += 1;
         let mut scores_orig: Vec<Score> = Vec::new();
         let mut scores_encoded: Vec<Score> = Vec::new();

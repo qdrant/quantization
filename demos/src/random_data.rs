@@ -1,6 +1,6 @@
 mod utils;
 
-use quantization::i8_encoder::I8EncodedVectors;
+use quantization::encoder::EncodedVectors;
 use rand::Rng;
 
 use crate::utils::euclid_similarity;
@@ -18,7 +18,7 @@ fn main() {
     }
 
     let timer = std::time::Instant::now();
-    let encoder = I8EncodedVectors::new(
+    let encoder = EncodedVectors::new(
         vector_data.iter().map(|v| v.as_slice()),
         vectors_count,
         vector_dim,

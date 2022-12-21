@@ -2,7 +2,7 @@ use std::collections::BinaryHeap;
 
 use crate::utils::{cosine_preprocess, same_count, Score};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::i8_encoder::I8EncodedVectors;
+use quantization::{encoder::EncodedVectors, utils::dot_avx};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -71,10 +71,10 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self) -> I8EncodedVectors {
+    pub fn encode_data(&self) -> EncodedVectors {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let encoded_data = I8EncodedVectors::new(
+        let encoded_data = EncodedVectors::new(
             self.vectors
                 .rows()
                 .into_iter()
@@ -91,7 +91,7 @@ impl AnnBenchmarkData {
 
     pub fn measure_scoring_time(
         &self,
-        encoded: &I8EncodedVectors,
+        encoded: &EncodedVectors,
         random_access: bool,
         queries_count: usize,
     ) {
@@ -120,7 +120,7 @@ impl AnnBenchmarkData {
             .map(|q| q.to_slice().unwrap())
         {
             let timer = std::time::Instant::now();
-            let query_u8 = I8EncodedVectors::encode_query(&query);
+            let query_u8 = EncodedVectors::encode_query(&query);
             for &index in &permutation {
                 scores[index] = encoded.score_point_dot_avx(&query_u8, index);
             }
@@ -138,7 +138,7 @@ impl AnnBenchmarkData {
             .map(|q| q.to_slice().unwrap())
         {
             let timer = std::time::Instant::now();
-            let query_u8 = I8EncodedVectors::encode_query(&query);
+            let query_u8 = EncodedVectors::encode_query(&query);
             encoded.score_points_dot(&query_u8, &permutation, &mut scores);
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
@@ -155,7 +155,8 @@ impl AnnBenchmarkData {
         {
             let timer = std::time::Instant::now();
             for &index in &permutation {
-                scores[index] = unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
+                scores[index] =
+                    unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
             }
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
@@ -164,11 +165,15 @@ impl AnnBenchmarkData {
         timings.clear();
 
         sent_bar.finish();
-        println!("Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms", avg_avx, avg_encoded, avg_encoded_block);
+        println!(
+            "Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms",
+            avg_avx, avg_encoded, avg_encoded_block
+        );
     }
 
-    pub fn test_knn_encoded<F>(&self, encoded: &I8EncodedVectors, postprocess: F)
-    where F: Fn(f32) -> f32
+    pub fn test_knn_encoded<F>(&self, encoded: &EncodedVectors, postprocess: F)
+    where
+        F: Fn(f32) -> f32,
     {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(self.queries_count as u64));
@@ -189,7 +194,7 @@ impl AnnBenchmarkData {
             .enumerate()
         {
             let timer = std::time::Instant::now();
-            let query_u8 = I8EncodedVectors::encode_query(&query);
+            let query_u8 = EncodedVectors::encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
                 let score = postprocess(encoded.score_point_dot_avx(&query_u8, index));
@@ -259,111 +264,4 @@ impl AnnBenchmarkData {
         println!("p99 search time: {}ms", p99_time);
         println!("Max search time: {}ms", max_time);
     }
-}
-
-use std::arch::x86_64::*;
-
-#[target_feature(enable = "avx")]
-#[target_feature(enable = "fma")]
-unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
-    let x128: __m128 = _mm_add_ps(_mm256_extractf128_ps(x, 1), _mm256_castps256_ps128(x));
-    let x64: __m128 = _mm_add_ps(x128, _mm_movehl_ps(x128, x128));
-    let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
-    _mm_cvtss_f32(x32)
-}
-
-unsafe fn hsum128_ps_sse(x: __m128) -> f32 {
-    let x64: __m128 = _mm_add_ps(x, _mm_movehl_ps(x, x));
-    let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
-    _mm_cvtss_f32(x32)
-}
-
-#[target_feature(enable = "avx")]
-#[target_feature(enable = "fma")]
-pub(crate) unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
-    let n = v1.len();
-    let m = n - (n % 32);
-    let mut ptr1: *const f32 = v1.as_ptr();
-    let mut ptr2: *const f32 = v2.as_ptr();
-    let mut sum256_1: __m256 = _mm256_setzero_ps();
-    let mut sum256_2: __m256 = _mm256_setzero_ps();
-    let mut sum256_3: __m256 = _mm256_setzero_ps();
-    let mut sum256_4: __m256 = _mm256_setzero_ps();
-    let mut i: usize = 0;
-    while i < m {
-        sum256_1 = _mm256_fmadd_ps(_mm256_loadu_ps(ptr1), _mm256_loadu_ps(ptr2), sum256_1);
-        sum256_2 = _mm256_fmadd_ps(
-            _mm256_loadu_ps(ptr1.add(8)),
-            _mm256_loadu_ps(ptr2.add(8)),
-            sum256_2,
-        );
-        sum256_3 = _mm256_fmadd_ps(
-            _mm256_loadu_ps(ptr1.add(16)),
-            _mm256_loadu_ps(ptr2.add(16)),
-            sum256_3,
-        );
-        sum256_4 = _mm256_fmadd_ps(
-            _mm256_loadu_ps(ptr1.add(24)),
-            _mm256_loadu_ps(ptr2.add(24)),
-            sum256_4,
-        );
-
-        ptr1 = ptr1.add(32);
-        ptr2 = ptr2.add(32);
-        i += 32;
-    }
-
-    let mut result = hsum256_ps_avx(sum256_1)
-        + hsum256_ps_avx(sum256_2)
-        + hsum256_ps_avx(sum256_3)
-        + hsum256_ps_avx(sum256_4);
-
-    for i in 0..n - m {
-        result += (*ptr1.add(i)) * (*ptr2.add(i));
-    }
-    result
-}
-
-pub(crate) unsafe fn dot_similarity_sse(v1: &[f32], v2: &[f32]) -> f32 {
-    let n = v1.len();
-    let m = n - (n % 16);
-    let mut ptr1: *const f32 = v1.as_ptr();
-    let mut ptr2: *const f32 = v2.as_ptr();
-    let mut sum128_1: __m128 = _mm_setzero_ps();
-    let mut sum128_2: __m128 = _mm_setzero_ps();
-    let mut sum128_3: __m128 = _mm_setzero_ps();
-    let mut sum128_4: __m128 = _mm_setzero_ps();
-
-    let mut i: usize = 0;
-    while i < m {
-        sum128_1 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(ptr1), _mm_loadu_ps(ptr2)), sum128_1);
-
-        sum128_2 = _mm_add_ps(
-            _mm_mul_ps(_mm_loadu_ps(ptr1.add(4)), _mm_loadu_ps(ptr2.add(4))),
-            sum128_2,
-        );
-
-        sum128_3 = _mm_add_ps(
-            _mm_mul_ps(_mm_loadu_ps(ptr1.add(8)), _mm_loadu_ps(ptr2.add(8))),
-            sum128_3,
-        );
-
-        sum128_4 = _mm_add_ps(
-            _mm_mul_ps(_mm_loadu_ps(ptr1.add(12)), _mm_loadu_ps(ptr2.add(12))),
-            sum128_4,
-        );
-
-        ptr1 = ptr1.add(16);
-        ptr2 = ptr2.add(16);
-        i += 16;
-    }
-
-    let mut result = hsum128_ps_sse(sum128_1)
-        + hsum128_ps_sse(sum128_2)
-        + hsum128_ps_sse(sum128_3)
-        + hsum128_ps_sse(sum128_4);
-    for i in 0..n - m {
-        result += (*ptr1.add(i)) * (*ptr2.add(i));
-    }
-    result
 }

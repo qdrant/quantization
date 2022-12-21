@@ -1,1 +1,2 @@
-pub mod i8_encoder;
+pub mod encoder;
+pub mod utils;
