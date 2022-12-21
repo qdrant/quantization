@@ -98,117 +98,43 @@ impl I8EncodedVectors {
         self.score_points_dot_avx(query, i, scores)
     }
 
-    pub fn score_points_dot_avx(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
-        const CHUNK_SIZE: usize = 2;
-        let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
-        unsafe {
-            for (indexes, scores) in indexes
-                .chunks_exact(CHUNK_SIZE)
-                .zip(scores.chunks_exact_mut(CHUNK_SIZE))
-            {
-                let v1_ptr = encoded_vectors_ptr.add(indexes[0] * self.dim);
-                let v2_ptr = encoded_vectors_ptr.add(indexes[1] * self.dim);
-                impl_score_pair_dot_avx(
-                    query.encoded_query.as_ptr() as *const u8,
-                    v1_ptr,
-                    v2_ptr,
-                    self.dim as u32,
-                    ALPHA,
-                    OFFSET,
-                    scores.as_mut_ptr(),
-                );
-            }
-        }
-    }
-
     pub fn score_points_dot_sse(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
-        const CHUNK_SIZE: usize = 2;
-        let encoded_vectors_ptr = self.encoded_vectors.as_ptr();
         unsafe {
             for (indexes, scores) in indexes
-                .chunks_exact(CHUNK_SIZE)
-                .zip(scores.chunks_exact_mut(CHUNK_SIZE))
+                .chunks_exact(2)
+                .zip(scores.chunks_exact_mut(2))
             {
                 let mut q_ptr = query.encoded_query.as_ptr() as *const __m128i;
-                let mut v1_ptr = encoded_vectors_ptr.add(indexes[0] * self.dim) as *const __m128i;
-                let mut v2_ptr = encoded_vectors_ptr.add(indexes[1] * self.dim) as *const __m128i;
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(indexes[1]);
+                let mut v1_ptr = v1_ptr as *const __m128i;
+                let mut v2_ptr = v2_ptr as *const __m128i;
 
-                let mut sum1 = _mm_setzero_si128();
-                let mut sum2 = _mm_setzero_si128();
                 let mut mul1 = _mm_setzero_si128();
                 let mut mul2 = _mm_setzero_si128();
-                let mask_epu16 = _mm_set1_epi16(0xFF);
-                let mask_epu32 = _mm_set1_epi32(0xFFFF);
                 for _ in 0..self.dim / 16 {
+                    let v1 = _mm_loadu_si128(v1_ptr);
+                    let v2 = _mm_loadu_si128(v2_ptr);
                     let q = _mm_loadu_si128(q_ptr);
+                    v1_ptr = v1_ptr.add(1);
+                    v2_ptr = v2_ptr.add(1);
                     q_ptr = q_ptr.add(1);
-                    let q1 = _mm_and_si128(q, mask_epu16);
-                    let q2 = _mm_srli_epi16(q, 8);
-
-                    {
-                        let v = _mm_loadu_si128(v1_ptr);
-                        v1_ptr = v1_ptr.add(1);
-
-                        let v1 = _mm_and_si128(v, mask_epu16);
-
-                        let m1 = _mm_mullo_epi16(v1, q1);
-                        let s1 = _mm_adds_epu16(v1, q1);
-
-                        sum1 = _mm_add_epi32(sum1, _mm_and_si128(s1, mask_epu32));
-                        sum1 = _mm_add_epi32(sum1, _mm_srli_epi32(s1, 16));
-
-                        mul1 = _mm_add_epi32(mul1, _mm_and_si128(m1, mask_epu32));
-                        mul1 = _mm_add_epi32(mul1, _mm_srli_epi32(m1, 16));
-
-                        let v2 = _mm_srli_epi16(v, 8);
-
-                        let m2 = _mm_mullo_epi16(v2, q2);
-                        let s2 = _mm_adds_epu16(v2, q2);
-
-                        sum1 = _mm_add_epi32(sum1, _mm_and_si128(s2, mask_epu32));
-                        sum1 = _mm_add_epi32(sum1, _mm_srli_epi32(s2, 16));
-
-                        mul1 = _mm_add_epi32(mul1, _mm_and_si128(m2, mask_epu32));
-                        mul1 = _mm_add_epi32(mul1, _mm_srli_epi32(m2, 16));
-                    }
-
-                    {
-                        let v = _mm_loadu_si128(v2_ptr);
-                        v2_ptr = v2_ptr.add(1);
-
-                        let v1 = _mm_and_si128(v, mask_epu16);
-
-                        let m1 = _mm_mullo_epi16(v1, q1);
-                        let s1 = _mm_adds_epu16(v1, q1);
-
-                        sum2 = _mm_add_epi32(sum2, _mm_and_si128(s1, mask_epu32));
-                        sum2 = _mm_add_epi32(sum2, _mm_srli_epi32(s1, 16));
-
-                        mul2 = _mm_add_epi32(mul2, _mm_and_si128(m1, mask_epu32));
-                        mul2 = _mm_add_epi32(mul2, _mm_srli_epi32(m1, 16));
-
-                        let v2 = _mm_srli_epi16(v, 8);
-
-                        let m2 = _mm_mullo_epi16(v2, q2);
-                        let s2 = _mm_adds_epu16(v2, q2);
-
-                        sum2 = _mm_add_epi32(sum2, _mm_and_si128(s2, mask_epu32));
-                        sum2 = _mm_add_epi32(sum2, _mm_srli_epi32(s2, 16));
-
-                        mul2 = _mm_add_epi32(mul2, _mm_and_si128(m2, mask_epu32));
-                        mul2 = _mm_add_epi32(mul2, _mm_srli_epi32(m2, 16));
-                    }
+    
+                    let s1 = _mm_maddubs_epi16(v1, q);
+                    let s2 = _mm_maddubs_epi16(v2, q);
+                    let s1_low = _mm_cvtepi16_epi32(s1);
+                    let s1_high = _mm_cvtepi16_epi32(_mm_srli_si128(s1, 8));
+                    let s2_low = _mm_cvtepi16_epi32(s2);
+                    let s2_high = _mm_cvtepi16_epi32(_mm_srli_si128(s2, 8));
+                    mul1 = _mm_add_epi32(mul1, s1_low);
+                    mul1 = _mm_add_epi32(mul1, s1_high);
+                    mul2 = _mm_add_epi32(mul2, s2_low);
+                    mul2 = _mm_add_epi32(mul2, s2_high);
                 }
                 let mul1 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul1));
-                let sum1 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(sum1));
                 let mul2 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul2));
-                let sum2 = Self::hsum128_ps_sse(_mm_cvtepi32_ps(sum2));
-                scores[0] = ALPHA * ALPHA * mul1
-                    + ALPHA * OFFSET * sum1
-                    + OFFSET * OFFSET * self.dim as f32;
-                scores[1] = ALPHA * ALPHA * mul2
-                    + ALPHA * OFFSET * sum2
-                    + OFFSET * OFFSET * self.dim as f32;
+                scores[0] = ALPHA * ALPHA_QUERY * mul1 + query.offset + vector1_offset;
+                scores[1] = ALPHA * ALPHA_QUERY * mul2 + query.offset + vector2_offset;
             }
         }
     }
@@ -219,8 +145,7 @@ impl I8EncodedVectors {
             let mut v_ptr = v_ptr as *const __m128i;
             let mut q_ptr = query.encoded_query.as_ptr() as *const __m128i;
 
-            let mut mul1 = _mm_setzero_si128();
-            let mut mul2 = _mm_setzero_si128();
+            let mut mul = _mm_setzero_si128();
             for _ in 0..self.dim / 16 {
                 let v = _mm_loadu_si128(v_ptr);
                 let q = _mm_loadu_si128(q_ptr);
@@ -230,35 +155,44 @@ impl I8EncodedVectors {
                 let s = _mm_maddubs_epi16(v, q);
                 let s_low = _mm_cvtepi16_epi32(s);
                 let s_high = _mm_cvtepi16_epi32(_mm_srli_si128(s, 8));
-                mul1 = _mm_add_epi32(mul1, s_low);
-                mul2 = _mm_add_epi32(mul2, s_high);
+                mul = _mm_add_epi32(mul, s_low);
+                mul = _mm_add_epi32(mul, s_high);
             }
-            let mul = _mm_add_epi32(mul1, mul2);
             let mul = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul));
             ALPHA * ALPHA_QUERY * mul + query.offset + vector_offset
         }
     }
 
-    pub fn score_point_dot_avx(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_points_dot_avx(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
         unsafe {
-            impl_score_dot_avx(
-                query.encoded_query.as_ptr() as *const u8,
-                self.encoded_vectors.as_ptr().add(i * self.dim),
-                self.dim as u32,
-                ALPHA,
-                OFFSET,
-            )
+            for (indexes, scores) in indexes
+                .chunks_exact(2)
+                .zip(scores.chunks_exact_mut(2))
+            {
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(indexes[1]);
+                impl_score_pair_dot_avx(
+                    query.encoded_query.as_ptr() as *const u8,
+                    v1_ptr,
+                    v2_ptr,
+                    self.dim as u32,
+                    ALPHA * ALPHA,
+                    query.offset + vector1_offset,
+                    query.offset + vector2_offset,
+                    scores.as_mut_ptr(),
+                );
+            }
         }
     }
 
-    pub fn score_point_dot_avx_2(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point_dot_avx(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            impl_score_dot_avx_2(
+            impl_score_dot_avx(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                ALPHA * ALPHA,
+                ALPHA * ALPHA_QUERY,
                 query.offset + vector_offset,
             )
         }
@@ -291,21 +225,14 @@ extern "C" {
         offset: f32,
     ) -> f32;
 
-    fn impl_score_dot_avx_2(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        dim: u32,
-        alpha: f32,
-        offset: f32,
-    ) -> f32;
-
     fn impl_score_pair_dot_avx(
         query_ptr: *const u8,
         vector1_ptr: *const u8,
         vector2_ptr: *const u8,
         dim: u32,
         alpha: f32,
-        offset: f32,
+        offset1: f32,
+        offset2: f32,
         result: *mut f32,
     );
 }

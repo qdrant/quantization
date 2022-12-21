@@ -143,15 +143,6 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("score all u8 avx 2", |b| {
-        b.iter(|| {
-            let mut _s = 0.0;
-            for i in 0..vectors_count {
-                _s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
-            }
-        });
-    });
-
     group.bench_function("score all u8 sse", |b| {
         b.iter(|| {
             let mut _s = 0.0;
@@ -187,15 +178,6 @@ fn encode_bench(c: &mut Criterion) {
             let mut _s = 0.0;
             for &i in &permutation {
                 _s = i8_encoded.score_point_dot_avx(&encoded_query, i);
-            }
-        });
-    });
-
-    group.bench_function("score random access u8 avx 2", |b| {
-        b.iter(|| {
-            let mut _s = 0.0;
-            for &i in &permutation {
-                _s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
             }
         });
     });
@@ -245,17 +227,6 @@ fn encode_bench(c: &mut Criterion) {
             for window in permutation.as_slice().chunks_exact(16) {
                 for (i, idx) in window.iter().enumerate() {
                     scores[i] = i8_encoded.score_point_dot_avx(&encoded_query, *idx);
-                }
-            }
-        });
-    });
-
-    group.bench_function("score random access blocks i8 avx 2", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| {
-            for window in permutation.as_slice().chunks_exact(16) {
-                for (i, idx) in window.iter().enumerate() {
-                    scores[i] = i8_encoded.score_point_dot_avx_2(&encoded_query, *idx);
                 }
             }
         });
