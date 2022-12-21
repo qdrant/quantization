@@ -136,45 +136,45 @@ fn encode_bench(c: &mut Criterion) {
 
     group.bench_function("score all u8 avx", |b| {
         b.iter(|| {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for i in 0..vectors_count {
-                s = i8_encoded.score_point_dot_avx(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_avx(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score all u8 avx 2", |b| {
         b.iter(|| {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for i in 0..vectors_count {
-                s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score all u8 sse", |b| {
         b.iter(|| {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for i in 0..vectors_count {
-                s = i8_encoded.score_point_dot_sse(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_sse(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score all avx", |b| {
         b.iter(|| unsafe {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for i in 0..vectors_count {
-                s = dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                _s = dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
     });
 
     group.bench_function("score all sse", |b| {
         b.iter(|| unsafe {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for i in 0..vectors_count {
-                s = dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                _s = dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
     });
@@ -184,45 +184,45 @@ fn encode_bench(c: &mut Criterion) {
 
     group.bench_function("score random access u8 avx", |b| {
         b.iter(|| {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for &i in &permutation {
-                s = i8_encoded.score_point_dot_avx(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_avx(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score random access u8 avx 2", |b| {
         b.iter(|| {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for &i in &permutation {
-                s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_avx_2(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score random access u8 sse", |b| {
-        let mut s = 0.0;
+        let mut _s = 0.0;
         b.iter(|| {
             for &i in &permutation {
-                s = i8_encoded.score_point_dot_sse(&encoded_query, i);
+                _s = i8_encoded.score_point_dot_sse(&encoded_query, i);
             }
         });
     });
 
     group.bench_function("score random access avx", |b| {
         b.iter(|| unsafe {
-            let mut s = 0.0;
+            let mut _s = 0.0;
             for &i in &permutation {
-                s = dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                _s = dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
     });
 
     group.bench_function("score random access sse", |b| {
-        let mut s = 0.0;
+        let mut _s = 0.0;
         b.iter(|| unsafe {
             for &i in &permutation {
-                s = dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
+                _s = dot_similarity_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
     });

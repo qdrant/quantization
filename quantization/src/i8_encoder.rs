@@ -235,7 +235,7 @@ impl I8EncodedVectors {
             }
             let mul = _mm_add_epi32(mul1, mul2);
             let mul = Self::hsum128_ps_sse(_mm_cvtepi32_ps(mul));
-            ALPHA * ALPHA * mul + query.offset + vector_offset
+            ALPHA * ALPHA_QUERY * mul + query.offset + vector_offset
         }
     }
 
