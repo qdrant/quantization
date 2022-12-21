@@ -1,8 +1,7 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 
-use crate::utils::{cosine_preprocess, same_count, Score};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::{encoder::EncodedVectors, utils::dot_avx};
+use quantization::encoder::EncodedVectors;
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -11,6 +10,26 @@ pub struct AnnBenchmarkData {
     pub queries: ndarray::Array2<f32>,
     pub queries_count: usize,
     pub neighbors: Vec<Vec<Score>>,
+}
+
+#[derive(PartialEq, Clone, Debug, Default)]
+pub struct Score {
+    pub index: usize,
+    pub score: f32,
+}
+
+impl Eq for Score {}
+
+impl std::cmp::PartialOrd for Score {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for Score {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.score.partial_cmp(&other.score).unwrap()
+    }
 }
 
 impl AnnBenchmarkData {
@@ -89,25 +108,19 @@ impl AnnBenchmarkData {
         encoded_data
     }
 
-    pub fn measure_scoring_time(
+    pub fn measure_scoring<F>(
         &self,
-        encoded: &EncodedVectors,
-        random_access: bool,
         queries_count: usize,
-    ) {
+        query_function: F,
+    )
+    where F: Fn(&[f32], &mut [f32])
+    {
         let multiprogress = MultiProgress::new();
-        let sent_bar = multiprogress.add(ProgressBar::new(3 * queries_count as u64));
+        let sent_bar = multiprogress.add(ProgressBar::new(queries_count as u64));
         let progress_style = ProgressStyle::default_bar()
             .template("{msg} [{elapsed_precise}] {wide_bar} [{per_sec:>3}] {pos}/{len} (eta:{eta})")
             .expect("Failed to create progress style");
         sent_bar.set_style(progress_style);
-
-        let permutation: Vec<usize> = if random_access {
-            let permutor = permutation_iterator::Permutor::new(self.vectors_count as u64);
-            permutor.map(|i| i as usize).collect()
-        } else {
-            (0..self.vectors_count).collect()
-        };
 
         let mut scores = vec![0.0; self.vectors_count];
         let mut timings = Vec::new();
@@ -120,58 +133,15 @@ impl AnnBenchmarkData {
             .map(|q| q.to_slice().unwrap())
         {
             let timer = std::time::Instant::now();
-            let query_u8 = EncodedVectors::encode_query(&query);
-            for &index in &permutation {
-                scores[index] = encoded.score_point_dot_avx(&query_u8, index);
-            }
+            query_function(query, &mut scores);
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
         }
-        let avg_encoded = timings.iter().sum::<f64>() / timings.len() as f64;
-        timings.clear();
-
-        for query in self
-            .queries
-            .rows()
-            .into_iter()
-            .take(queries_count)
-            .map(|q| q.to_slice().unwrap())
-        {
-            let timer = std::time::Instant::now();
-            let query_u8 = EncodedVectors::encode_query(&query);
-            encoded.score_points_dot(&query_u8, &permutation, &mut scores);
-            timings.push(timer.elapsed().as_millis() as f64);
-            sent_bar.inc(1);
-        }
-        let avg_encoded_block = timings.iter().sum::<f64>() / timings.len() as f64;
-        timings.clear();
-
-        for query in self
-            .queries
-            .rows()
-            .into_iter()
-            .take(queries_count)
-            .map(|q| q.to_slice().unwrap())
-        {
-            let timer = std::time::Instant::now();
-            for &index in &permutation {
-                scores[index] =
-                    unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
-            }
-            timings.push(timer.elapsed().as_millis() as f64);
-            sent_bar.inc(1);
-        }
-        let avg_avx = timings.iter().sum::<f64>() / timings.len() as f64;
-        timings.clear();
-
         sent_bar.finish();
-        println!(
-            "Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms",
-            avg_avx, avg_encoded, avg_encoded_block
-        );
+        Self::print_timings(&mut timings);
     }
 
-    pub fn test_knn_encoded<F>(&self, encoded: &EncodedVectors, postprocess: F)
+    pub fn test_knn<F>(&self, encoded: &EncodedVectors, postprocess: F)
     where
         F: Fn(f32) -> f32,
     {
@@ -197,9 +167,7 @@ impl AnnBenchmarkData {
             let query_u8 = EncodedVectors::encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let score = postprocess(encoded.score_point_dot_avx(&query_u8, index));
-                //let score = 1.0 - unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
-                //let score = 1.0 - unsafe { dot_similarity_sse(&query, self.vectors.row(index).as_slice().unwrap()) };
+                let score = postprocess(encoded.score_point_dot(&query_u8, index));
                 let score = Score { index, score };
                 if heap.len() == 30 {
                     let mut top = heap.peek_mut().unwrap();
@@ -264,4 +232,19 @@ impl AnnBenchmarkData {
         println!("p99 search time: {}ms", p99_time);
         println!("Max search time: {}ms", max_time);
     }
+}
+
+pub fn cosine_preprocess(vector: &mut [f32]) {
+    let mut length: f32 = vector.iter().map(|x| x * x).sum();
+    if length < f32::EPSILON {
+        return;
+    }
+    length = length.sqrt();
+    vector.iter_mut().for_each(|x| *x = *x / length);
+}
+
+pub fn same_count(a: &[Score], b: &[Score]) -> usize {
+    let a = a.iter().map(|s| s.index).collect::<HashSet<_>>();
+    let b = b.iter().map(|s| s.index).collect::<HashSet<_>>();
+    a.intersection(&b).count()
 }

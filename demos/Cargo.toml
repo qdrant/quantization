@@ -24,9 +24,5 @@ name = "basic"
 path = "src/basic.rs"
 
 [[bin]]
-name = "random_data"
-path = "src/random_data.rs"
-
-[[bin]]
 name = "glove_100_angular"
 path = "src/glove_100_angular.rs"

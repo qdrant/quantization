@@ -5,8 +5,8 @@ mod tests {
 
     #[test]
     fn test_dot_simple() {
-        let vectors_count = 128;
-        let vector_dim = 64;
+        let vectors_count = 129;
+        let vector_dim = 65;
         let error = vector_dim as f32 * 0.1;
 
         //let mut rng = rand::thread_rng();
