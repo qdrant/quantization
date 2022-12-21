@@ -124,3 +124,84 @@ EXPORT void impl_score_pair_dot_avx(
     result[0] = alpha * mul1_scalar + offset1;
     result[1] = alpha * mul2_scalar + offset2;
 }
+
+#define HSUM128_PS(X, R) \
+    float R = 0.0f; \
+    { \
+    __m128 x64 = _mm_add_ps(X, _mm_movehl_ps(X, X)); \
+    __m128 x32 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55)); \
+    R = _mm_cvtss_f32(x32); \
+    }
+
+EXPORT float impl_score_dot_sse(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t dim,
+    float alpha,
+    float offset
+) {
+    const __m128i* v_ptr = (const __m128i*)vector_ptr;
+    const __m128i* q_ptr = (const __m128i*)query_ptr;
+
+    __m128i mul = _mm_setzero_si128();
+    for (uint32_t _i = 0; _i < dim / 16; _i++) {
+        __m128i v = _mm_loadu_si128(v_ptr);
+        __m128i q = _mm_loadu_si128(q_ptr);
+        v_ptr++;
+        q_ptr++;
+
+        __m128i s = _mm_maddubs_epi16(v, q);
+        __m128i s_low = _mm_cvtepi16_epi32(s);
+        __m128i s_high = _mm_cvtepi16_epi32(_mm_srli_si128(s, 8));
+        mul = _mm_add_epi32(mul, s_low);
+        mul = _mm_add_epi32(mul, s_high);
+    }
+    __m128 mul_ps = _mm_cvtepi32_ps(mul);
+    HSUM128_PS(mul_ps, mul_scalar);
+    return alpha * mul_scalar + offset;
+}
+
+EXPORT void impl_score_pair_dot_sse(
+    const uint8_t* query_ptr,
+    const uint8_t* vector1_ptr,
+    const uint8_t* vector2_ptr,
+    uint32_t dim,
+    float alpha,
+    float offset1,
+    float offset2,
+    float* result
+) {
+    const __m128i* v1_ptr = (const __m128i*)vector1_ptr;
+    const __m128i* v2_ptr = (const __m128i*)vector2_ptr;
+    const __m128i* q_ptr = (const __m128i*)query_ptr;
+
+    __m128i mul1 = _mm_setzero_si128();
+    __m128i mul2 = _mm_setzero_si128();
+    for (uint32_t _i = 0; _i < dim / 16; _i++) {
+        __m128i v1 = _mm_loadu_si128(v1_ptr);
+        __m128i v2 = _mm_loadu_si128(v2_ptr);
+        __m128i q = _mm_loadu_si128(q_ptr);
+        v1_ptr++;
+        v2_ptr++;
+        q_ptr++;
+
+        __m128i s1 = _mm_maddubs_epi16(v1, q);
+        __m128i s2 = _mm_maddubs_epi16(v2, q);
+
+        __m128i s1_low = _mm_cvtepi16_epi32(s1);
+        __m128i s1_high = _mm_cvtepi16_epi32(_mm_srli_si128(s1, 8));
+        mul1 = _mm_add_epi32(mul1, s1_low);
+        mul1 = _mm_add_epi32(mul1, s1_high);
+
+        __m128i s2_low = _mm_cvtepi16_epi32(s2);
+        __m128i s2_high = _mm_cvtepi16_epi32(_mm_srli_si128(s2, 8));
+        mul2 = _mm_add_epi32(mul2, s2_low);
+        mul2 = _mm_add_epi32(mul2, s2_high);
+    }
+    __m128 mul1_ps = _mm_cvtepi32_ps(mul1);
+    __m128 mul2_ps = _mm_cvtepi32_ps(mul2);
+    HSUM128_PS(mul1_ps, mul1_scalar);
+    HSUM128_PS(mul2_ps, mul2_scalar);
+    result[0] = alpha * mul1_scalar + offset1;
+    result[1] = alpha * mul2_scalar + offset2;
+}
