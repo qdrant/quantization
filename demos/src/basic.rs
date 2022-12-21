@@ -1,6 +1,6 @@
 mod utils;
 use quantization::i8_encoder::I8EncodedVectors;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 
 use crate::utils::dot_similarity;
 
@@ -9,7 +9,8 @@ fn main() {
     let vector_dim = 64;
     let error = vector_dim as f32 * 0.1;
 
-    let mut rng = rand::thread_rng();
+    //let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
     for _ in 0..vectors_count {
         let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
@@ -30,10 +31,10 @@ fn main() {
     encoded.score_points_dot(&query_u8, &indexes, &mut scores);
 
     for i in 0..vectors_count {
-        let score = encoded.score_point_dot_avx(&query_u8, i);
-        let score2 = scores[i];
+        let score = encoded.score_point_dot_sse(&query_u8, i);
+        //let score2 = scores[i];
         let orginal_score = dot_similarity(&query, &vector_data[i]);
         assert!((score - orginal_score).abs() < error);
-        assert!((score2 - orginal_score).abs() < error);
+        //assert!((score2 - orginal_score).abs() < error);
     }
 }

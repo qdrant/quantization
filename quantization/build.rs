@@ -4,3 +4,4 @@ fn main() {
         .flag("-march=haswell")
         .compile("simd_utils");
 }
+

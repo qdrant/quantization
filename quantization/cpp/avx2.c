@@ -92,6 +92,67 @@ EXPORT float impl_score_dot_avx(
     return alpha * alpha * mul_scalar + alpha * offset * sum_scalar + offset * offset * dim;
 }
 
+EXPORT float impl_score_dot_avx_2(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t dim,
+    float alpha,
+    float offset
+) {
+    const __m256i* v_ptr = (const __m256i*)vector_ptr;
+    const __m256i* q_ptr = (const __m256i*)query_ptr;
+
+    __m256i mul1 = _mm256_setzero_si256();
+    __m256i mul2 = _mm256_setzero_si256();
+    __m256i mask_epu32 = _mm256_set1_epi32(0xFFFF);
+    for (uint32_t _i = 0; _i < dim / 32; _i++) {
+        __m256i v = _mm256_loadu_si256(v_ptr);
+        __m256i q = _mm256_loadu_si256(q_ptr);
+        v_ptr++;
+        q_ptr++;
+
+        __m256i s = _mm256_maddubs_epi16(v, q);
+        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(s, mask_epu32));
+        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(s, 16));
+        
+        //__m256i s_low = _mm256_cvtepi16_epi32(s);
+        //__m256i s_high = _mm256_cvtepi16_epi32(_mm256_srli_si256(s, 16));
+        //mul1 = _mm256_add_epi32(mul1, s_low);
+        //mul2 = _mm256_add_epi32(mul2, s_high);
+    }
+    if (dim % 32 != 0) {
+        __m128i v_short = _mm_loadu_si128((const __m128i*)v_ptr);
+        __m128i q_short = _mm_loadu_si128((const __m128i*)q_ptr);
+
+        __m256i v1 = _mm256_cvtepu8_epi16(v_short);
+        __m256i q1 = _mm256_cvtepu8_epi16(q_short);
+
+        __m256i s = _mm256_mullo_epi16(v1, q1);
+        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(s, mask_epu32));
+        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(s, 16));
+    }
+    __m256i mul = _mm256_add_epi32(mul1, mul2);
+    __m256 mul_ps = _mm256_cvtepi32_ps(mul);
+    HSUM256_PS(mul_ps, mul_scalar);
+    return alpha * mul_scalar + offset;
+}
+
+EXPORT void impl_score_pair_dot_avx_2(
+    const uint8_t* query_ptr,
+    const uint8_t* vector1_ptr,
+    const uint8_t* vector2_ptr,
+    uint32_t dim,
+    float alpha,
+    float offset,
+    float* result
+) {
+    const __m256i* v1_ptr = (const __m256i*)vector1_ptr;
+    const __m256i* v2_ptr = (const __m256i*)vector2_ptr;
+    const __m256i* q_ptr = (const __m256i*)query_ptr;
+    for (uint32_t _i = 0; _i < dim / 32; _i++) {
+    }
+}
+
 EXPORT void impl_score_pair_dot_avx(
     const uint8_t* query_ptr,
     const uint8_t* vector1_ptr,

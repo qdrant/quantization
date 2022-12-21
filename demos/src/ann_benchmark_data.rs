@@ -122,7 +122,7 @@ impl AnnBenchmarkData {
             let timer = std::time::Instant::now();
             let query_u8 = I8EncodedVectors::encode_query(&query);
             for &index in &permutation {
-                scores[index] = encoded.score_point_dot(&query_u8, index);
+                scores[index] = encoded.score_point_dot_avx_2(&query_u8, index);
             }
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
@@ -130,6 +130,7 @@ impl AnnBenchmarkData {
         let avg_encoded = timings.iter().sum::<f64>() / timings.len() as f64;
         timings.clear();
 
+        /*
         for query in self
             .queries
             .rows()
@@ -143,6 +144,7 @@ impl AnnBenchmarkData {
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
         }
+        */
         let avg_encoded_block = timings.iter().sum::<f64>() / timings.len() as f64;
         timings.clear();
 
@@ -163,9 +165,8 @@ impl AnnBenchmarkData {
         let avg_avx = timings.iter().sum::<f64>() / timings.len() as f64;
         timings.clear();
 
-        println!("Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms", avg_avx, avg_encoded, avg_encoded_block);
-
         sent_bar.finish();
+        println!("Scoring time: AVX: {:.2}ms, encoded: {:.2}ms, encoded block: {:.2}ms", avg_avx, avg_encoded, avg_encoded_block);
     }
 
     pub fn test_knn_encoded<F>(&self, encoded: &I8EncodedVectors, postprocess: F)
@@ -193,7 +194,7 @@ impl AnnBenchmarkData {
             let query_u8 = I8EncodedVectors::encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let score = postprocess(encoded.score_point_dot(&query_u8, index));
+                let score = postprocess(encoded.score_point_dot_avx_2(&query_u8, index));
                 //let score = 1.0 - unsafe { dot_avx(&query, self.vectors.row(index).as_slice().unwrap()) };
                 //let score = 1.0 - unsafe { dot_similarity_sse(&query, self.vectors.row(index).as_slice().unwrap()) };
                 let score = Score { index, score };
