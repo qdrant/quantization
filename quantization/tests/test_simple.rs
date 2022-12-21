@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use quantization::{encoder::EncodedVectors, utils::dot_sse};
+    use quantization::{encoder::EncodedVectors, utils::dot_similarity};
     use rand::{Rng, SeedableRng};
 
     #[test]
-    fn test_sse() {
+    fn test_dot_simple() {
         let vectors_count = 128;
         let vector_dim = 64;
         let error = vector_dim as f32 * 0.1;
@@ -33,7 +33,7 @@ mod tests {
         for i in 0..vectors_count {
             let score = encoded.score_point_dot_simple(&query_u8, i);
             let score2 = scores[i];
-            let orginal_score = unsafe { dot_sse(&query, &vector_data[i]) };
+            let orginal_score = dot_similarity(&query, &vector_data[i]);
             assert!((score - orginal_score).abs() < error);
             assert!((score2 - orginal_score).abs() < error);
         }

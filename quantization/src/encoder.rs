@@ -1,5 +1,5 @@
-use std::arch::x86_64::*;
 use crate::utils::hsum128_ps_sse;
+use std::arch::x86_64::*;
 
 pub const ALIGHMENT: usize = 16;
 pub const ALPHA: f32 = 1.0 / 63.0;
@@ -146,11 +146,11 @@ impl EncodedVectors {
     pub fn score_point_dot_simple(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            let mut sum = 0i32;
+            let mut mul = 0i32;
             for i in 0..self.dim {
-                sum += self.encoded_vectors[i] as i32 * (*v_ptr.add(i)) as i32;
+                mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
             }
-            ALPHA * ALPHA_QUERY * sum as f32 + query.offset + vector_offset
+            ALPHA * ALPHA_QUERY * mul as f32 + query.offset + vector_offset
         }
     }
 
@@ -226,6 +226,10 @@ impl EncodedVectors {
                 scores[0] = ALPHA * ALPHA_QUERY * mul1 + query.offset + vector1_offset;
                 scores[1] = ALPHA * ALPHA_QUERY * mul2 + query.offset + vector2_offset;
             }
+            if indexes.len() % 2 == 1 {
+                let idx = indexes.len() - 1;
+                scores[idx] = self.score_point_dot_sse(query, indexes[idx]);
+            }
         }
     }
 
@@ -250,6 +254,10 @@ impl EncodedVectors {
                     query.offset + vector2_offset,
                     scores.as_mut_ptr(),
                 );
+            }
+            if indexes.len() % 2 == 1 {
+                let idx = indexes.len() - 1;
+                scores[idx] = self.score_point_dot_avx(query, indexes[idx]);
             }
         }
     }

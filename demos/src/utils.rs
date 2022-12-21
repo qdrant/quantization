@@ -34,11 +34,6 @@ pub fn euclid_similarity(v1: &[f32], v2: &[f32]) -> f32 {
 }
 
 #[allow(unused)]
-pub fn dot_similarity(v1: &[f32], v2: &[f32]) -> f32 {
-    v1.iter().zip(v2).map(|(a, b)| a * b).sum()
-}
-
-#[allow(unused)]
 pub fn cosine_preprocess(vector: &mut [f32]) {
     let mut length: f32 = vector.iter().map(|x| x * x).sum();
     if length < f32::EPSILON {
