@@ -1,6 +1,5 @@
 mod ann_benchmark_data;
 
-use quantization::encoder::EncodedVectors;
 use quantization::utils::{dot_avx, dot_sse};
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
@@ -50,7 +49,8 @@ const DATASETS: [(&str, &str, DistanceType); 7] = [
 ];
 
 fn main() {
-    let dataset = &DATASETS[0];
+    for i in 0..7 {
+    let dataset = &DATASETS[i];
     let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
     if dataset.2 == DistanceType::Cosine {
         data.cosine_preprocess();
@@ -76,7 +76,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let query_u8 = EncodedVectors::encode_query(&query);
+            let query_u8 = encoded.encode_query(&query);
             for &index in &linear_indices {
                 scores[index] = encoded.score_point_dot_avx(&query_u8, index);
             }
@@ -87,7 +87,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let encoded_query = EncodedVectors::encode_query(&query);
+            let encoded_query = encoded.encode_query(&query);
             encoded.score_points_dot_avx(&encoded_query, &linear_indices, scores);
         }
     );
@@ -106,7 +106,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let query_u8 = EncodedVectors::encode_query(&query);
+            let query_u8 = encoded.encode_query(&query);
             for &index in &linear_indices {
                 scores[index] = encoded.score_point_dot_sse(&query_u8, index);
             }
@@ -117,7 +117,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let encoded_query = EncodedVectors::encode_query(&query);
+            let encoded_query = encoded.encode_query(&query);
             encoded.score_points_dot_sse(&encoded_query, &linear_indices, scores);
         }
     );
@@ -136,7 +136,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let query_u8 = EncodedVectors::encode_query(&query);
+            let query_u8 = encoded.encode_query(&query);
             for &index in &random_indices {
                 scores[index] = encoded.score_point_dot_avx(&query_u8, index);
             }
@@ -147,7 +147,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let encoded_query = EncodedVectors::encode_query(&query);
+            let encoded_query = encoded.encode_query(&query);
             encoded.score_points_dot_avx(&encoded_query, &random_indices, scores);
         }
     );
@@ -166,7 +166,7 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let query_u8 = EncodedVectors::encode_query(&query);
+            let query_u8 = encoded.encode_query(&query);
             for &index in &random_indices {
                 scores[index] = encoded.score_point_dot_sse(&query_u8, index);
             }
@@ -177,11 +177,12 @@ fn main() {
     data.measure_scoring(
         data.queries_count / 10,
         |query, scores| {
-            let encoded_query = EncodedVectors::encode_query(&query);
+            let encoded_query = encoded.encode_query(&query);
             encoded.score_points_dot_sse(&encoded_query, &random_indices, scores);
         }
     );
 
     println!("Estimate knn accuracy");
     data.test_knn(&encoded, |x| 1.0 - x);
+    }
 }

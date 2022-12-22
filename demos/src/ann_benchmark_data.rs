@@ -164,7 +164,7 @@ impl AnnBenchmarkData {
             .enumerate()
         {
             let timer = std::time::Instant::now();
-            let query_u8 = EncodedVectors::encode_query(&query);
+            let query_u8 = encoded.encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
                 let score = postprocess(encoded.score_point_dot(&query_u8, index));

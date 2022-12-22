@@ -28,7 +28,7 @@ fn encode_bench(c: &mut Criterion) {
     .unwrap();
 
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-    let encoded_query = EncodedVectors::encode_query(&query);
+    let encoded_query = i8_encoded.encode_query(&query);
 
     group.bench_function("score all u8 avx", |b| {
         b.iter(|| {

@@ -18,7 +18,6 @@ mod tests {
             vector_data.push(vector);
         }
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
-        let query_u8 = EncodedVectors::encode_query(&query);
 
         let encoded = EncodedVectors::new(
             vector_data.iter().map(|v| v.as_slice()),
@@ -26,6 +25,7 @@ mod tests {
             vector_dim,
         )
         .unwrap();
+        let query_u8 = encoded.encode_query(&query);
 
         let indexes = (0..vectors_count).collect::<Vec<_>>();
         let mut scores = vec![0.0; vectors_count];

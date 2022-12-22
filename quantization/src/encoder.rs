@@ -1,18 +1,20 @@
 pub const ALIGHMENT: usize = 16;
-pub const ALPHA: f32 = 1.0 / 63.0;
-pub const OFFSET: f32 = -1.0;
-pub const ALPHA_QUERY: f32 = 1.0 / 63.0;
-pub const OFFSET_QUERY: f32 = -1.0;
+//pub const ALPHA: f32 = 1.0 / 63.0;
+//pub const OFFSET: f32 = -1.0;
+//pub const ALPHA_QUERY: f32 = 1.0 / 63.0;
+//pub const OFFSET_QUERY: f32 = -1.0;
 
 pub struct EncodedVectors {
     pub encoded_vectors: Vec<u8>,
     pub dim: usize,
     pub actual_dim: usize,
+    pub alpha: f32,
+    pub offset: f32,
 }
 
 pub struct EncodedQuery {
     pub offset: f32,
-    pub encoded_query: Vec<i8>,
+    pub encoded_query: Vec<u8>,
 }
 
 impl EncodedVectors {
@@ -21,22 +23,23 @@ impl EncodedVectors {
         vectors_count: usize,
         dim: usize,
     ) -> Result<EncodedVectors, String> {
+        let (alpha, offset) = Self::find_alpha_offset(orig_data.clone());
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
         let mut encoded_vectors = Vec::with_capacity(vectors_count * dim);
         for vector in orig_data {
             let mut encoded_vector = Vec::new();
             for &value in vector {
-                let endoded = Self::f32_to_u8(value);
+                let endoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(endoded);
             }
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                    let endoded = Self::f32_to_u8(0.0);
+                    let endoded = Self::f32_to_u8(0.0, alpha, offset);
                     encoded_vector.push(endoded);
                 }
             }
-            let offset = extended_dim as f32 * OFFSET_QUERY * OFFSET
-                + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * ALPHA * OFFSET_QUERY;
+            let offset = extended_dim as f32 * offset * offset
+                + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset;
             encoded_vectors.extend_from_slice(&offset.to_ne_bytes());
             encoded_vectors.extend_from_slice(&encoded_vector);
         }
@@ -45,11 +48,31 @@ impl EncodedVectors {
             encoded_vectors,
             dim: extended_dim,
             actual_dim: dim,
+            alpha,
+            offset,
         })
     }
 
-    pub fn f32_to_u8(i: f32) -> u8 {
-        let i = (i - OFFSET) / ALPHA;
+    fn find_alpha_offset<'a>(orig_data: impl IntoIterator<Item = &'a [f32]>) -> (f32, f32) {
+        let mut min = f32::MAX;
+        let mut max = f32::MIN;
+        for vector in orig_data {
+            for &value in vector {
+                if value < min {
+                    min = value;
+                }
+                if value > max {
+                    max = value;
+                }
+            }
+        }
+        let alpha = (max - min) / 127.0;
+        let offset = min;
+        (alpha, offset)
+    }
+
+    fn f32_to_u8(i: f32, alpha: f32, offset: f32) -> u8 {
+        let i = (i - offset) / alpha;
         let i = if i > 127.0 {
             127.0
         } else if i < 0.0 {
@@ -60,28 +83,16 @@ impl EncodedVectors {
         i as u8
     }
 
-    pub fn f32_to_i8(i: f32) -> i8 {
-        let i = (i - OFFSET_QUERY) / ALPHA_QUERY;
-        let i = if i > 127.0 {
-            127.0
-        } else if i < 0.0 {
-            0.0
-        } else {
-            i
-        };
-        i as i8
-    }
-
-    pub fn encode_query(query: &[f32]) -> EncodedQuery {
+    pub fn encode_query(&self, query: &[f32]) -> EncodedQuery {
         let dim = query.len();
-        let mut query: Vec<_> = query.iter().map(|&v| Self::f32_to_i8(v)).collect();
+        let mut query: Vec<_> = query.iter().map(|&v| Self::f32_to_u8(v, self.alpha, self.offset)).collect();
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                let endoded = Self::f32_to_i8(0.0);
+                let endoded = Self::f32_to_u8(0.0, self.alpha, self.offset);
                 query.push(endoded);
             }
         }
-        let offset = query.iter().map(|&x| x as f32).sum::<f32>() * ALPHA_QUERY * OFFSET;
+        let offset = query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset;
         EncodedQuery {
             offset,
             encoded_query: query,
@@ -105,7 +116,7 @@ impl EncodedVectors {
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         {
-            if std::arch::is_aarch64_feature_detected!("neon") && vector.len() >= MIN_DIM_SIZE_SIMD
+            if std::arch::is_aarch64_feature_detected!("neon")
             {
                 return self.score_point_dot_neon(query, i);
             }
@@ -131,7 +142,7 @@ impl EncodedVectors {
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         {
-            if std::arch::is_aarch64_feature_detected!("neon") && vector.len() >= MIN_DIM_SIZE_SIMD
+            if std::arch::is_aarch64_feature_detected!("neon")
             {
                 return self.score_points_dot_neon(query, i);
             }
@@ -147,7 +158,7 @@ impl EncodedVectors {
             for i in 0..self.dim {
                 mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
             }
-            ALPHA * ALPHA_QUERY * mul as f32 + query.offset + vector_offset
+            self.alpha * self.alpha * mul as f32 + query.offset + vector_offset
         }
     }
 
@@ -165,7 +176,7 @@ impl EncodedVectors {
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                ALPHA * ALPHA_QUERY,
+                self.alpha * self.alpha,
                 query.offset + vector_offset,
             )
         }
@@ -187,7 +198,7 @@ impl EncodedVectors {
                     v1_ptr,
                     v2_ptr,
                     self.dim as u32,
-                    ALPHA * ALPHA_QUERY,
+                    self.alpha * self.alpha,
                     query.offset + vector1_offset,
                     query.offset + vector2_offset,
                     scores.as_mut_ptr(),
@@ -208,7 +219,7 @@ impl EncodedVectors {
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                ALPHA * ALPHA_QUERY,
+                self.alpha * self.alpha,
                 query.offset + vector_offset,
             )
         }
@@ -230,7 +241,7 @@ impl EncodedVectors {
                     v1_ptr,
                     v2_ptr,
                     self.dim as u32,
-                    ALPHA * ALPHA_QUERY,
+                    self.alpha * self.alpha,
                     query.offset + vector1_offset,
                     query.offset + vector2_offset,
                     scores.as_mut_ptr(),
