@@ -40,13 +40,10 @@ EXPORT float impl_score_dot_avx(
         q_ptr++;
 
         __m256i s = _mm256_maddubs_epi16(v, q);
-        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(s, mask_epu32));
-        mul1 = _mm256_add_epi32(mul1, _mm256_srli_epi32(s, 16));
-        
-        //__m256i s_low = _mm256_cvtepi16_epi32(s);
-        //__m256i s_high = _mm256_cvtepi16_epi32(_mm256_srli_si256(s, 16));
-        //mul1 = _mm256_add_epi32(mul1, s_low);
-        //mul2 = _mm256_add_epi32(mul2, s_high);
+        __m256i s_low = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(s));
+        __m256i s_high = _mm256_cvtepi16_epi32(_mm256_extractf128_si256(s, 1));
+        mul1 = _mm256_add_epi32(mul1, s_low);
+        mul1 = _mm256_add_epi32(mul1, s_high);
     }
     if (dim % 32 != 0) {
         __m128i v_short = _mm_loadu_si128((const __m128i*)v_ptr);
@@ -91,15 +88,16 @@ EXPORT void impl_score_pair_dot_avx(
 
         __m256i s1 = _mm256_maddubs_epi16(v1, q);
         __m256i s2 = _mm256_maddubs_epi16(v2, q);
-        mul1 = _mm256_add_epi32(mul1, _mm256_and_si256(s1, mask_epu32));
-        mul1 = _mm256_add_epi32(mul1, _mm256_srli_epi32(s1, 16));
-        mul2 = _mm256_add_epi32(mul2, _mm256_and_si256(s2, mask_epu32));
-        mul2 = _mm256_add_epi32(mul2, _mm256_srli_epi32(s2, 16));
 
-        //__m256i s_low = _mm256_cvtepi16_epi32(s);
-        //__m256i s_high = _mm256_cvtepi16_epi32(_mm256_srli_si256(s, 16));
-        //mul1 = _mm256_add_epi32(mul1, s_low);
-        //mul2 = _mm256_add_epi32(mul2, s_high);
+        __m256i s1_low = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(s1));
+        __m256i s1_high = _mm256_cvtepi16_epi32(_mm256_extractf128_si256(s1, 1));
+        __m256i s2_low = _mm256_cvtepi16_epi32(_mm256_castsi256_si128(s2));
+        __m256i s2_high = _mm256_cvtepi16_epi32(_mm256_extractf128_si256(s2, 1));
+
+        mul1 = _mm256_add_epi32(mul1, s1_low);
+        mul1 = _mm256_add_epi32(mul1, s1_high);
+        mul2 = _mm256_add_epi32(mul2, s2_low);
+        mul2 = _mm256_add_epi32(mul2, s2_high);
     }
     if (dim % 32 != 0) {
         __m128i v1_short = _mm_loadu_si128((const __m128i*)v1_ptr);

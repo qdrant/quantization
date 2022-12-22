@@ -1,5 +1,5 @@
 pub const ALIGHMENT: usize = 16;
-pub const ALPHA: f32 = 1.0 / 127.0;
+pub const ALPHA: f32 = 1.0 / 63.0;
 pub const OFFSET: f32 = -1.0;
 pub const ALPHA_QUERY: f32 = 1.0 / 63.0;
 pub const OFFSET_QUERY: f32 = -1.0;
@@ -50,8 +50,8 @@ impl EncodedVectors {
 
     pub fn f32_to_u8(i: f32) -> u8 {
         let i = (i - OFFSET) / ALPHA;
-        let i = if i > 255.0 {
-            255.0
+        let i = if i > 127.0 {
+            127.0
         } else if i < 0.0 {
             0.0
         } else {
