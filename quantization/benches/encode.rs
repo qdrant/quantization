@@ -2,7 +2,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
 use quantization::encoder::EncodedVectors;
 #[cfg(target_arch = "x86_64")]
-use quantization::utils::{dot_avx, dot_sse};
+use quantization::utils_avx2::dot_avx;
+#[cfg(target_arch = "x86_64")]
+use quantization::utils_sse::dot_sse;
 use rand::Rng;
 
 fn encode_bench(c: &mut Criterion) {

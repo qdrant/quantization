@@ -1,7 +1,9 @@
 mod ann_benchmark_data;
 
 #[cfg(target_arch = "x86_64")]
-use quantization::utils::{dot_avx, dot_sse};
+use quantization::utils_avx2::dot_avx;
+#[cfg(target_arch = "x86_64")]
+use quantization::utils_sse::dot_sse;
 
 #[cfg(target_arch = "aarch64")]
 #[cfg(target_feature = "neon")]
