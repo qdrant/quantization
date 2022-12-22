@@ -144,7 +144,7 @@ impl EncodedVectors {
         {
             if std::arch::is_aarch64_feature_detected!("neon")
             {
-                return self.score_points_dot_neon(query, i);
+                return self.score_points_dot_neon(query, i, scores);
             }
         }
 
@@ -163,6 +163,23 @@ impl EncodedVectors {
     }
 
     pub fn score_points_dot_simple(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
+        for (i, score) in i.iter().zip(scores.iter_mut()) {
+            *score = self.score_point_dot_simple(query, *i);
+        }
+    }
+
+    pub fn score_point_dot_neon(&self, query: &EncodedQuery, i: usize) -> f32 {
+        unsafe {
+            let (vector_offset, v_ptr) = self.get_vec_ptr(i);
+            let mut mul = 0i32;
+            for i in 0..self.dim {
+                mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
+            }
+            self.alpha * self.alpha * mul as f32 + query.offset + vector_offset
+        }
+    }
+
+    pub fn score_points_dot_neon(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
         for (i, score) in i.iter().zip(scores.iter_mut()) {
             *score = self.score_point_dot_simple(query, *i);
         }

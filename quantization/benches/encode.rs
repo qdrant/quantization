@@ -1,9 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::{
-    encoder::EncodedVectors,
-    utils::{dot_avx, dot_sse},
-};
+use quantization::encoder::EncodedVectors;
+#[cfg(target_arch = "x86_64")]
+use quantization::utils::{dot_avx, dot_sse};
 use rand::Rng;
 
 fn encode_bench(c: &mut Criterion) {
@@ -30,6 +29,7 @@ fn encode_bench(c: &mut Criterion) {
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
     let encoded_query = i8_encoded.encode_query(&query);
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score all u8 avx", |b| {
         b.iter(|| {
             let mut _s = 0.0;
@@ -39,6 +39,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score all u8 sse", |b| {
         b.iter(|| {
             let mut _s = 0.0;
@@ -48,6 +49,17 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "aarch64")]
+    group.bench_function("score all u8 neon", |b| {
+        b.iter(|| {
+            let mut _s = 0.0;
+            for i in 0..vectors_count {
+                _s = i8_encoded.score_point_dot_neon(&encoded_query, i);
+            }
+        });
+    });
+
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score all avx", |b| {
         b.iter(|| unsafe {
             let mut _s = 0.0;
@@ -57,6 +69,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score all sse", |b| {
         b.iter(|| unsafe {
             let mut _s = 0.0;
@@ -69,6 +82,7 @@ fn encode_bench(c: &mut Criterion) {
     let permutor = Permutor::new(vectors_count as u64);
     let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access u8 avx", |b| {
         b.iter(|| {
             let mut _s = 0.0;
@@ -78,6 +92,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access u8 sse", |b| {
         let mut _s = 0.0;
         b.iter(|| {
@@ -87,6 +102,17 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "aarch64")]
+    group.bench_function("score random access u8 sse", |b| {
+        let mut _s = 0.0;
+        b.iter(|| {
+            for &i in &permutation {
+                _s = i8_encoded.score_point_dot_neon(&encoded_query, i);
+            }
+        });
+    });
+
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access avx", |b| {
         b.iter(|| unsafe {
             let mut _s = 0.0;
@@ -96,6 +122,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access sse", |b| {
         let mut _s = 0.0;
         b.iter(|| unsafe {
@@ -105,6 +132,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access blocks avx", |b| {
         let mut scores = vec![0.0; 16];
         b.iter(|| unsafe {
@@ -116,6 +144,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access blocks i8 avx", |b| {
         let mut scores = vec![0.0; 16];
         b.iter(|| {
@@ -127,6 +156,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access blocks i8 sse", |b| {
         let mut scores = vec![0.0; 16];
         b.iter(|| {
@@ -138,6 +168,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access blocks i8 sse blocked", |b| {
         let mut scores = vec![0.0; 16];
         b.iter(|| {
@@ -147,6 +178,7 @@ fn encode_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access blocks i8 avx blocked", |b| {
         let mut scores = vec![0.0; 16];
         b.iter(|| {

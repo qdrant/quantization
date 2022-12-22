@@ -1,6 +1,11 @@
 mod ann_benchmark_data;
 
+#[cfg(target_arch = "x86_64")]
 use quantization::utils::{dot_avx, dot_sse};
+
+#[cfg(target_arch = "aarch64")]
+#[cfg(target_feature = "neon")]
+use quantization::utils_neon::dot_neon;
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
 
@@ -62,6 +67,8 @@ fn main() {
     let random_indices: Vec<usize> = permutor.map(|i| i as usize).collect();
     let linear_indices: Vec<usize> = (0..data.vectors_count).collect();
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure AVX2 linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -71,7 +78,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized AVX2 linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -82,7 +92,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized chunked AVX2 linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -91,7 +104,10 @@ fn main() {
             encoded.score_points_dot_avx(&encoded_query, &linear_indices, scores);
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure SSE linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -101,7 +117,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized SSE linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -112,7 +131,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized chunked SSE linear access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -121,7 +143,52 @@ fn main() {
             encoded.score_points_dot_sse(&encoded_query, &linear_indices, scores);
         }
     );
+    }
 
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure NEON linear access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            for &index in &linear_indices {
+                scores[index] = unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+            }
+        }
+    );
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure Quantized NEON linear access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            let query_u8 = encoded.encode_query(&query);
+            for &index in &linear_indices {
+                scores[index] = encoded.score_point_dot_neon(&query_u8, index);
+            }
+        }
+    );
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure Quantized chunked NOEN linear access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            let encoded_query = encoded.encode_query(&query);
+            encoded.score_points_dot_neon(&encoded_query, &linear_indices, scores);
+        }
+    );
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure AVX2 random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -131,7 +198,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized AVX2 random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -142,7 +212,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized chunked AVX2 random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -151,7 +224,10 @@ fn main() {
             encoded.score_points_dot_avx(&encoded_query, &random_indices, scores);
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure SSE random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -161,7 +237,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized SSE random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -172,7 +251,10 @@ fn main() {
             }
         }
     );
+    }
 
+    #[cfg(target_arch = "x86_64")]
+    {
     println!("Measure Quantized chunked SSE random access");
     data.measure_scoring(
         data.queries_count / 10,
@@ -181,6 +263,49 @@ fn main() {
             encoded.score_points_dot_sse(&encoded_query, &random_indices, scores);
         }
     );
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure NEON random access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            for &index in &random_indices {
+                scores[index] = unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+            }
+        }
+    );
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure Quantized NEON random access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            let query_u8 = encoded.encode_query(&query);
+            for &index in &random_indices {
+                scores[index] = encoded.score_point_dot_neon(&query_u8, index);
+            }
+        }
+    );
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[cfg(target_feature = "neon")]
+    {
+    println!("Measure Quantized chunked NEON random access");
+    data.measure_scoring(
+        data.queries_count / 10,
+        |query, scores| {
+            let encoded_query = encoded.encode_query(&query);
+            encoded.score_points_dot_neon(&encoded_query, &random_indices, scores);
+        }
+    );
+    }
 
     println!("Estimate knn accuracy");
     data.test_knn(&encoded, |x| 1.0 - x);
