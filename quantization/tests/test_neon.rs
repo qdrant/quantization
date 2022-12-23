@@ -6,7 +6,7 @@ mod tests {
     use rand::{Rng, SeedableRng};
 
     #[test]
-    fn test_dot_avx() {
+    fn test_dot_neon() {
         let vectors_count = 129;
         let vector_dim = 65;
         let error = vector_dim as f32 * 0.1;

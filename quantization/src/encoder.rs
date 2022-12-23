@@ -1,5 +1,3 @@
-use std::arch::aarch64::*;
-
 pub const ALIGHMENT: usize = 16;
 
 pub struct EncodedVectors {
@@ -166,29 +164,41 @@ impl EncodedVectors {
         }
     }
 
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
     pub fn score_point_dot_neon(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            let q_ptr = query.encoded_query.as_ptr();
-
-            let mut mul1 = vdupq_n_u32(0);
-            let mut mul2 = vdupq_n_u32(0);
-            for _ in 0..self.dim / 16 {
-                let q = vld1q_u8(q_ptr);
-                let v = vld1q_u8(v_ptr);
-                let mul_low: uint16x8_t = vmull_u8(vget_low_u8(q), vget_low_u8(v));
-                let mul_high: uint16x8_t = vmull_u8(vget_high_u8(q), vget_high_u8(v));
-                mul1 = vpadalq_u16(mul1, mul_low);
-                mul2 = vpadalq_u16(mul2, mul_high);
-            }
-            let mul = vaddvq_u32(vaddq_u32(mul1, mul2));
-            self.alpha * self.alpha * mul as f32 + query.offset + vector_offset
+            impl_score_dot_neon(
+                query.encoded_query.as_ptr() as *const u8,
+                v_ptr,
+                self.dim as u32,
+                self.alpha * self.alpha,
+                query.offset + vector_offset,
+            )
         }
     }
 
-    pub fn score_points_dot_neon(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
-        for (i, score) in i.iter().zip(scores.iter_mut()) {
-            *score = self.score_point_dot_neon(query, *i);
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+    pub fn score_points_dot_neon(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
+        unsafe {
+            for (indexes, scores) in indexes.chunks_exact(2).zip(scores.chunks_exact_mut(2)) {
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(indexes[1]);
+                impl_score_pair_dot_neon(
+                    query.encoded_query.as_ptr() as *const u8,
+                    v1_ptr,
+                    v2_ptr,
+                    self.dim as u32,
+                    self.alpha * self.alpha,
+                    query.offset + vector1_offset,
+                    query.offset + vector2_offset,
+                    scores.as_mut_ptr(),
+                );
+            }
+            if indexes.len() % 2 == 1 {
+                let idx = indexes.len() - 1;
+                scores[idx] = self.score_point_dot_neon(query, indexes[idx]);
+            }
         }
     }
 
@@ -319,6 +329,28 @@ extern "C" {
     ) -> f32;
 
     fn impl_score_pair_dot_sse(
+        query_ptr: *const u8,
+        vector1_ptr: *const u8,
+        vector2_ptr: *const u8,
+        dim: u32,
+        alpha: f32,
+        offset1: f32,
+        offset2: f32,
+        result: *mut f32,
+    );
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+extern "C" {
+    fn impl_score_dot_neon(
+        query_ptr: *const u8,
+        vector_ptr: *const u8,
+        dim: u32,
+        alpha: f32,
+        offset: f32,
+    ) -> f32;
+
+    fn impl_score_pair_dot_neon(
         query_ptr: *const u8,
         vector1_ptr: *const u8,
         vector2_ptr: *const u8,
