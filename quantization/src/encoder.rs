@@ -1,8 +1,6 @@
+use std::arch::aarch64::*;
+
 pub const ALIGHMENT: usize = 16;
-//pub const ALPHA: f32 = 1.0 / 63.0;
-//pub const OFFSET: f32 = -1.0;
-//pub const ALPHA_QUERY: f32 = 1.0 / 63.0;
-//pub const OFFSET_QUERY: f32 = -1.0;
 
 pub struct EncodedVectors {
     pub encoded_vectors: Vec<u8>,
@@ -171,17 +169,26 @@ impl EncodedVectors {
     pub fn score_point_dot_neon(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            let mut mul = 0i32;
-            for i in 0..self.dim {
-                mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
+            let q_ptr = query.encoded_query.as_ptr();
+
+            let mut mul1 = vdupq_n_u32(0);
+            let mut mul2 = vdupq_n_u32(0);
+            for _ in 0..self.dim / 16 {
+                let q = vld1q_u8(q_ptr);
+                let v = vld1q_u8(v_ptr);
+                let mul_low: uint16x8_t = vmull_u8(vget_low_u8(q), vget_low_u8(v));
+                let mul_high: uint16x8_t = vmull_u8(vget_high_u8(q), vget_high_u8(v));
+                mul1 = vpadalq_u16(mul1, mul_low);
+                mul2 = vpadalq_u16(mul2, mul_high);
             }
+            let mul = vaddvq_u32(vaddq_u32(mul1, mul2));
             self.alpha * self.alpha * mul as f32 + query.offset + vector_offset
         }
     }
 
     pub fn score_points_dot_neon(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
         for (i, score) in i.iter().zip(scores.iter_mut()) {
-            *score = self.score_point_dot_simple(query, *i);
+            *score = self.score_point_dot_neon(query, *i);
         }
     }
 
