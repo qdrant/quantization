@@ -39,16 +39,27 @@ impl EncodedVectors {
             }
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                    let endoded = Self::f32_to_u8(0.0, alpha, offset);
+                    let placeholder = match distance_type {
+                        DistanceType::Cosine => 0.0,
+                        DistanceType::L2 => offset,
+                    };
+                    let endoded = Self::f32_to_u8(placeholder, alpha, offset);
                     encoded_vector.push(endoded);
                 }
             }
-            let offset = extended_dim as f32 * offset * offset
-                + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset;
-            encoded_vectors.extend_from_slice(&offset.to_ne_bytes());
+            let vector_offset = match distance_type {
+                DistanceType::Cosine => extended_dim as f32 * offset * offset
+                    + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset,
+                DistanceType::L2 => extended_dim as f32 * offset * offset
+                    + encoded_vector.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * alpha * alpha,
+            };
+            encoded_vectors.extend_from_slice(&vector_offset.to_ne_bytes());
             encoded_vectors.extend_from_slice(&encoded_vector);
         }
-        let multiplier = alpha * alpha;
+        let multiplier = match distance_type {
+            DistanceType::Cosine => alpha * alpha,
+            DistanceType::L2 => -2.0 * alpha * alpha,
+        };
 
         Ok(EncodedVectors {
             encoded_vectors,
@@ -96,11 +107,18 @@ impl EncodedVectors {
         let mut query: Vec<_> = query.iter().map(|&v| Self::f32_to_u8(v, self.alpha, self.offset)).collect();
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                let endoded = Self::f32_to_u8(0.0, self.alpha, self.offset);
+                let placeholder = match self.distance_type {
+                    DistanceType::Cosine => 0.0,
+                    DistanceType::L2 => self.offset,
+                };
+                let endoded = Self::f32_to_u8(placeholder, self.alpha, self.offset);
                 query.push(endoded);
             }
         }
-        let offset = query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset;
+        let offset = match self.distance_type {
+            DistanceType::Cosine => query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset,
+            DistanceType::L2 => query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.alpha * self.alpha,
+        };
         EncodedQuery {
             offset,
             encoded_query: query,

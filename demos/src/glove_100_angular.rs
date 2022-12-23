@@ -71,7 +71,7 @@ const DATASETS: [(&str, &str, DistanceType); 11] = [
 ];
 
 fn main() {
-    for i in 3..11 {
+    for i in 7..8 {
     let dataset = &DATASETS[i];
     let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
     if dataset.2 == DistanceType::Cosine {
