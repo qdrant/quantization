@@ -5,9 +5,7 @@
 EXPORT float impl_score_dot_neon(
     const uint8_t* query_ptr,
     const uint8_t* vector_ptr,
-    uint32_t dim,
-    float alpha,
-    float offset
+    uint32_t dim
 ) {
     uint32x4_t mul1 = vdupq_n_u32(0);
     uint32x4_t mul2 = vdupq_n_u32(0);
@@ -21,8 +19,7 @@ EXPORT float impl_score_dot_neon(
         mul1 = vpadalq_u16(mul1, mul_low);
         mul2 = vpadalq_u16(mul2, mul_high);
     }
-    float mul = vaddvq_u32(vaddq_u32(mul1, mul2));
-    return alpha * mul + offset;
+    return (float)vaddvq_u32(vaddq_u32(mul1, mul2));
 }
 
 EXPORT void impl_score_pair_dot_neon(
@@ -30,9 +27,6 @@ EXPORT void impl_score_pair_dot_neon(
     const uint8_t* vector1_ptr,
     const uint8_t* vector2_ptr,
     uint32_t dim,
-    float alpha,
-    float offset1,
-    float offset2,
     float* result
 ) {
     uint32x4_t mul1 = vdupq_n_u32(0);
@@ -57,6 +51,6 @@ EXPORT void impl_score_pair_dot_neon(
     }
     float mul1_scalar = vaddvq_u32(mul1);
     float mul2_scalar = vaddvq_u32(mul2);
-    result[0] = alpha * mul1_scalar + offset1;
-    result[1] = alpha * mul2_scalar + offset2;
+    result[0] = mul1_scalar;
+    result[1] = mul2_scalar;
 }

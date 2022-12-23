@@ -1,4 +1,4 @@
-use quantization::encoder::EncodedVectors;
+use quantization::encoder::{EncodedVectors, DistanceType};
 use rand::{Rng, SeedableRng};
 
 use quantization::utils::dot_similarity;
@@ -20,6 +20,7 @@ fn main() {
         vector_data.iter().map(|v| v.as_slice()),
         vectors_count,
         vector_dim,
+        DistanceType::Cosine,
     )
     .unwrap();
     let query_u8 = encoded.encode_query(&query);

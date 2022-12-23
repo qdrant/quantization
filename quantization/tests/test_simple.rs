@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use quantization::{encoder::EncodedVectors, utils::dot_similarity};
+    use quantization::{encoder::{EncodedVectors, DistanceType}, utils::dot_similarity};
     use rand::{Rng, SeedableRng};
 
     #[test]
@@ -22,6 +22,7 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             vectors_count,
             vector_dim,
+            DistanceType::Cosine,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);

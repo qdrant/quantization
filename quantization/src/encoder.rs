@@ -1,11 +1,19 @@
 pub const ALIGHMENT: usize = 16;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DistanceType {
+    L2,
+    Cosine,
+}
+
 pub struct EncodedVectors {
     pub encoded_vectors: Vec<u8>,
     pub dim: usize,
     pub actual_dim: usize,
     pub alpha: f32,
     pub offset: f32,
+    pub distance_type: DistanceType,
+    pub multiplier: f32,
 }
 
 pub struct EncodedQuery {
@@ -18,6 +26,7 @@ impl EncodedVectors {
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         vectors_count: usize,
         dim: usize,
+        distance_type: DistanceType,
     ) -> Result<EncodedVectors, String> {
         let (alpha, offset) = Self::find_alpha_offset(orig_data.clone());
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
@@ -39,6 +48,7 @@ impl EncodedVectors {
             encoded_vectors.extend_from_slice(&offset.to_ne_bytes());
             encoded_vectors.extend_from_slice(&encoded_vector);
         }
+        let multiplier = alpha * alpha;
 
         Ok(EncodedVectors {
             encoded_vectors,
@@ -46,6 +56,8 @@ impl EncodedVectors {
             actual_dim: dim,
             alpha,
             offset,
+            distance_type,
+            multiplier,
         })
     }
 
@@ -154,7 +166,7 @@ impl EncodedVectors {
             for i in 0..self.dim {
                 mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
             }
-            self.alpha * self.alpha * mul as f32 + query.offset + vector_offset
+            self.multiplier * mul as f32 + query.offset + vector_offset
         }
     }
 
@@ -168,13 +180,12 @@ impl EncodedVectors {
     pub fn score_point_dot_neon(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            impl_score_dot_neon(
+            let score = impl_score_dot_neon(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                self.alpha * self.alpha,
-                query.offset + vector_offset,
-            )
+            );
+            self.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -189,11 +200,10 @@ impl EncodedVectors {
                     v1_ptr,
                     v2_ptr,
                     self.dim as u32,
-                    self.alpha * self.alpha,
-                    query.offset + vector1_offset,
-                    query.offset + vector2_offset,
                     scores.as_mut_ptr(),
                 );
+                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
@@ -206,13 +216,12 @@ impl EncodedVectors {
     pub fn score_point_dot_sse(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            impl_score_dot_sse(
+            let score = impl_score_dot_sse(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                self.alpha * self.alpha,
-                query.offset + vector_offset,
-            )
+            );
+            self.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -232,11 +241,10 @@ impl EncodedVectors {
                     v1_ptr,
                     v2_ptr,
                     self.dim as u32,
-                    self.alpha * self.alpha,
-                    query.offset + vector1_offset,
-                    query.offset + vector2_offset,
                     scores.as_mut_ptr(),
                 );
+                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
@@ -249,13 +257,12 @@ impl EncodedVectors {
     pub fn score_point_dot_avx(&self, query: &EncodedQuery, i: usize) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
-            impl_score_dot_avx(
+            let score = impl_score_dot_avx(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
                 self.dim as u32,
-                self.alpha * self.alpha,
-                query.offset + vector_offset,
-            )
+            );
+            self.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -275,11 +282,10 @@ impl EncodedVectors {
                     v1_ptr,
                     v2_ptr,
                     self.dim as u32,
-                    self.alpha * self.alpha,
-                    query.offset + vector1_offset,
-                    query.offset + vector2_offset,
                     scores.as_mut_ptr(),
                 );
+                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
@@ -305,8 +311,6 @@ extern "C" {
         query_ptr: *const u8,
         vector_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset: f32,
     ) -> f32;
 
     fn impl_score_pair_dot_avx(
@@ -314,9 +318,6 @@ extern "C" {
         vector1_ptr: *const u8,
         vector2_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset1: f32,
-        offset2: f32,
         result: *mut f32,
     );
 
@@ -324,8 +325,6 @@ extern "C" {
         query_ptr: *const u8,
         vector_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset: f32,
     ) -> f32;
 
     fn impl_score_pair_dot_sse(
@@ -333,9 +332,6 @@ extern "C" {
         vector1_ptr: *const u8,
         vector2_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset1: f32,
-        offset2: f32,
         result: *mut f32,
     );
 }

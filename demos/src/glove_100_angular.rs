@@ -1,5 +1,6 @@
 mod ann_benchmark_data;
 
+use quantization::encoder::DistanceType;
 #[cfg(target_arch = "x86_64")]
 use quantization::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]
@@ -11,13 +12,7 @@ use quantization::utils_neon::dot_neon;
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DistanceType {
-    Euclid,
-    Cosine,
-}
-
-const DATASETS: [(&str, &str, DistanceType); 7] = [
+const DATASETS: [(&str, &str, DistanceType); 11] = [
     (
         "test_data/glove-200-angular.hdf5",
         "http://ann-benchmarks.com/glove-200-angular.hdf5",
@@ -53,17 +48,37 @@ const DATASETS: [(&str, &str, DistanceType); 7] = [
         "http://ann-benchmarks.com/lastfm-64-dot.hdf5",
         DistanceType::Cosine,
     ),
+    (
+        "test_data/Fashion-MNIST.hdf5",
+        "http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5",
+        DistanceType::L2,
+    ),
+    (
+        "test_data/GIST.hdf5",
+        "http://ann-benchmarks.com/gist-960-euclidean.hdf5",
+        DistanceType::L2,
+    ),
+    (
+        "test_data/MNIST.hdf5",
+        "http://ann-benchmarks.com/mnist-784-euclidean.hdf5",
+        DistanceType::L2,
+    ),
+    (
+        "test_data/SIFT.hdf5",
+        "http://ann-benchmarks.com/sift-128-euclidean.hdf5",
+        DistanceType::L2,
+    ),
 ];
 
 fn main() {
-    for i in 0..7 {
+    for i in 3..11 {
     let dataset = &DATASETS[i];
     let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
     if dataset.2 == DistanceType::Cosine {
         data.cosine_preprocess();
     }
 
-    let encoded = data.encode_data();
+    let encoded = data.encode_data(dataset.2);
 
     let permutor = permutation_iterator::Permutor::new(data.vectors_count as u64);
     let random_indices: Vec<usize> = permutor.map(|i| i as usize).collect();
@@ -310,6 +325,10 @@ fn main() {
     }
 
     println!("Estimate knn accuracy");
-    data.test_knn(&encoded, |x| 1.0 - x);
+    if dataset.2 == DistanceType::Cosine {
+        data.test_knn(&encoded, |x| 1.0 - x);
+    } else {
+        data.test_knn(&encoded, |x| x);
+    }
     }
 }

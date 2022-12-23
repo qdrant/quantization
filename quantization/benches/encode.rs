@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::encoder::EncodedVectors;
+use quantization::encoder::{EncodedVectors, DistanceType};
 #[cfg(target_arch = "x86_64")]
 use quantization::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]
@@ -25,6 +25,7 @@ fn encode_bench(c: &mut Criterion) {
             .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         vectors_count,
         vector_dim,
+        DistanceType::Cosine,
     )
     .unwrap();
 

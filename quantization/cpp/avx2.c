@@ -24,9 +24,7 @@
 EXPORT float impl_score_dot_avx(
     const uint8_t* query_ptr,
     const uint8_t* vector_ptr,
-    uint32_t dim,
-    float alpha,
-    float offset
+    uint32_t dim
 ) {
     const __m256i* v_ptr = (const __m256i*)vector_ptr;
     const __m256i* q_ptr = (const __m256i*)query_ptr;
@@ -58,7 +56,7 @@ EXPORT float impl_score_dot_avx(
     }
     __m256 mul_ps = _mm256_cvtepi32_ps(mul1);
     HSUM256_PS(mul_ps, mul_scalar);
-    return alpha * mul_scalar + offset;
+    return mul_scalar;
 }
 
 EXPORT void impl_score_pair_dot_avx(
@@ -66,9 +64,6 @@ EXPORT void impl_score_pair_dot_avx(
     const uint8_t* vector1_ptr,
     const uint8_t* vector2_ptr,
     uint32_t dim,
-    float alpha,
-    float offset1,
-    float offset2,
     float* result
 ) {
     const __m256i* v1_ptr = (const __m256i*)vector1_ptr;
@@ -119,8 +114,8 @@ EXPORT void impl_score_pair_dot_avx(
     __m256 mul2_ps = _mm256_cvtepi32_ps(mul2);
     HSUM256_PS(mul1_ps, mul1_scalar);
     HSUM256_PS(mul2_ps, mul2_scalar);
-    result[0] = alpha * mul1_scalar + offset1;
-    result[1] = alpha * mul2_scalar + offset2;
+    result[0] = mul1_scalar;
+    result[1] = mul2_scalar;
 }
 
 #define HSUM128_PS(X, R) \
@@ -134,9 +129,7 @@ EXPORT void impl_score_pair_dot_avx(
 EXPORT float impl_score_dot_sse(
     const uint8_t* query_ptr,
     const uint8_t* vector_ptr,
-    uint32_t dim,
-    float alpha,
-    float offset
+    uint32_t dim
 ) {
     const __m128i* v_ptr = (const __m128i*)vector_ptr;
     const __m128i* q_ptr = (const __m128i*)query_ptr;
@@ -156,7 +149,7 @@ EXPORT float impl_score_dot_sse(
     }
     __m128 mul_ps = _mm_cvtepi32_ps(mul);
     HSUM128_PS(mul_ps, mul_scalar);
-    return alpha * mul_scalar + offset;
+    return mul_scalar;
 }
 
 EXPORT void impl_score_pair_dot_sse(
@@ -164,9 +157,6 @@ EXPORT void impl_score_pair_dot_sse(
     const uint8_t* vector1_ptr,
     const uint8_t* vector2_ptr,
     uint32_t dim,
-    float alpha,
-    float offset1,
-    float offset2,
     float* result
 ) {
     const __m128i* v1_ptr = (const __m128i*)vector1_ptr;
@@ -200,6 +190,6 @@ EXPORT void impl_score_pair_dot_sse(
     __m128 mul2_ps = _mm_cvtepi32_ps(mul2);
     HSUM128_PS(mul1_ps, mul1_scalar);
     HSUM128_PS(mul2_ps, mul2_scalar);
-    result[0] = alpha * mul1_scalar + offset1;
-    result[1] = alpha * mul2_scalar + offset2;
+    result[0] = mul1_scalar;
+    result[1] = mul2_scalar;
 }
