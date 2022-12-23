@@ -342,8 +342,6 @@ extern "C" {
         query_ptr: *const u8,
         vector_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset: f32,
     ) -> f32;
 
     fn impl_score_pair_dot_neon(
@@ -351,9 +349,6 @@ extern "C" {
         vector1_ptr: *const u8,
         vector2_ptr: *const u8,
         dim: u32,
-        alpha: f32,
-        offset1: f32,
-        offset2: f32,
         result: *mut f32,
     );
 }
