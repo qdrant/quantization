@@ -71,264 +71,216 @@ const DATASETS: [(&str, &str, DistanceType); 11] = [
 ];
 
 fn main() {
-    for i in 7..8 {
-    let dataset = &DATASETS[i];
-    let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
-    if dataset.2 == DistanceType::Cosine {
-        data.cosine_preprocess();
-    }
-
-    let encoded = data.encode_data(dataset.2);
-
-    let permutor = permutation_iterator::Permutor::new(data.vectors_count as u64);
-    let random_indices: Vec<usize> = permutor.map(|i| i as usize).collect();
-    let linear_indices: Vec<usize> = (0..data.vectors_count).collect();
-
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure AVX2 linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &linear_indices {
-                scores[index] = unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+    for i in 0..11 {
+        let dataset = &DATASETS[i];
+        let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
+        if dataset.2 == DistanceType::Cosine {
+            data.cosine_preprocess();
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized AVX2 linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &linear_indices {
-                scores[index] = encoded.score_point_dot_avx(&query_u8, index);
-            }
+        let encoded = data.encode_data(dataset.2);
+
+        let permutor = permutation_iterator::Permutor::new(data.vectors_count as u64);
+        let random_indices: Vec<usize> = permutor.map(|i| i as usize).collect();
+        let linear_indices: Vec<usize> = (0..data.vectors_count).collect();
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure AVX2 linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &linear_indices {
+                    scores[index] =
+                        unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized chunked AVX2 linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_avx(&encoded_query, &linear_indices, scores);
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized AVX2 linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &linear_indices {
+                    scores[index] = encoded.score_point_dot_avx(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure SSE linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &linear_indices {
-                scores[index] = unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized chunked AVX2 linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_avx(&encoded_query, &linear_indices, scores);
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized SSE linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &linear_indices {
-                scores[index] = encoded.score_point_dot_sse(&query_u8, index);
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure SSE linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &linear_indices {
+                    scores[index] =
+                        unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized chunked SSE linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_sse(&encoded_query, &linear_indices, scores);
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized SSE linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &linear_indices {
+                    scores[index] = encoded.score_point_dot_sse(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure NEON linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &linear_indices {
-                scores[index] = unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized chunked SSE linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_sse(&encoded_query, &linear_indices, scores);
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure Quantized NEON linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &linear_indices {
-                scores[index] = encoded.score_point_dot_neon(&query_u8, index);
-            }
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure NEON linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &linear_indices {
+                    scores[index] =
+                        unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure Quantized chunked NOEN linear access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_neon(&encoded_query, &linear_indices, scores);
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure Quantized NEON linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &linear_indices {
+                    scores[index] = encoded.score_point_dot_neon(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure AVX2 random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &random_indices {
-                scores[index] = unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure Quantized chunked NOEN linear access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_neon(&encoded_query, &linear_indices, scores);
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized AVX2 random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &random_indices {
-                scores[index] = encoded.score_point_dot_avx(&query_u8, index);
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure AVX2 random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &random_indices {
+                    scores[index] =
+                        unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized chunked AVX2 random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_avx(&encoded_query, &random_indices, scores);
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized AVX2 random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &random_indices {
+                    scores[index] = encoded.score_point_dot_avx(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure SSE random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &random_indices {
-                scores[index] = unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized chunked AVX2 random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_avx(&encoded_query, &random_indices, scores);
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized SSE random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &random_indices {
-                scores[index] = encoded.score_point_dot_sse(&query_u8, index);
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure SSE random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &random_indices {
+                    scores[index] =
+                        unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "x86_64")]
-    {
-    println!("Measure Quantized chunked SSE random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_sse(&encoded_query, &random_indices, scores);
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized SSE random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &random_indices {
+                    scores[index] = encoded.score_point_dot_sse(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure NEON random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            for &index in &random_indices {
-                scores[index] = unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
-            }
+        #[cfg(target_arch = "x86_64")]
+        {
+            println!("Measure Quantized chunked SSE random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_sse(&encoded_query, &random_indices, scores);
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure Quantized NEON random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let query_u8 = encoded.encode_query(&query);
-            for &index in &random_indices {
-                scores[index] = encoded.score_point_dot_neon(&query_u8, index);
-            }
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure NEON random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                for &index in &random_indices {
+                    scores[index] =
+                        unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+                }
+            });
         }
-    );
-    }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
-    {
-    println!("Measure Quantized chunked NEON random access");
-    data.measure_scoring(
-        data.queries_count / 10,
-        |query, scores| {
-            let encoded_query = encoded.encode_query(&query);
-            encoded.score_points_dot_neon(&encoded_query, &random_indices, scores);
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure Quantized NEON random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let query_u8 = encoded.encode_query(&query);
+                for &index in &random_indices {
+                    scores[index] = encoded.score_point_dot_neon(&query_u8, index);
+                }
+            });
         }
-    );
-    }
 
-    println!("Estimate knn accuracy");
-    if dataset.2 == DistanceType::Cosine {
-        data.test_knn(&encoded, |x| 1.0 - x);
-    } else {
-        data.test_knn(&encoded, |x| x);
-    }
+        #[cfg(target_arch = "aarch64")]
+        #[cfg(target_feature = "neon")]
+        {
+            println!("Measure Quantized chunked NEON random access");
+            data.measure_scoring(data.queries_count / 10, |query, scores| {
+                let encoded_query = encoded.encode_query(&query);
+                encoded.score_points_dot_neon(&encoded_query, &random_indices, scores);
+            });
+        }
+
+        println!("Estimate knn accuracy");
+        if dataset.2 == DistanceType::Cosine {
+            data.test_knn(&encoded, |x| 1.0 - x);
+        } else {
+            data.test_knn(&encoded, |x| x);
+        }
     }
 }

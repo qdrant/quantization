@@ -2,7 +2,10 @@
 #[cfg(any(target_arch = "aarch64"))]
 #[cfg(target_feature = "neon")]
 mod tests {
-    use quantization::{encoder::{EncodedVectors, DistanceType}, utils::{l2_similarity, dot_similarity}};
+    use quantization::{
+        encoder::{DistanceType, EncodedVectors},
+        utils::{dot_similarity, l2_similarity},
+    };
     use rand::{Rng, SeedableRng};
 
     #[test]

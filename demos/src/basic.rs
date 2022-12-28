@@ -1,4 +1,4 @@
-use quantization::encoder::{EncodedVectors, DistanceType};
+use quantization::encoder::{DistanceType, EncodedVectors};
 use rand::{Rng, SeedableRng};
 
 use quantization::utils::dot_similarity;

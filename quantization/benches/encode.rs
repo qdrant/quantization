@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::encoder::{EncodedVectors, DistanceType};
+use quantization::encoder::{DistanceType, EncodedVectors};
 #[cfg(target_arch = "x86_64")]
 use quantization::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]

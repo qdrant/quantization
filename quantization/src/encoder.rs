@@ -48,10 +48,19 @@ impl EncodedVectors {
                 }
             }
             let vector_offset = match distance_type {
-                DistanceType::Cosine => extended_dim as f32 * offset * offset
-                    + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset,
-                DistanceType::L2 => extended_dim as f32 * offset * offset
-                    + encoded_vector.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * alpha * alpha,
+                DistanceType::Cosine => {
+                    extended_dim as f32 * offset * offset
+                        + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset
+                }
+                DistanceType::L2 => {
+                    extended_dim as f32 * offset * offset
+                        + encoded_vector
+                            .iter()
+                            .map(|&x| x as f32 * x as f32)
+                            .sum::<f32>()
+                            * alpha
+                            * alpha
+                }
             };
             encoded_vectors.extend_from_slice(&vector_offset.to_ne_bytes());
             encoded_vectors.extend_from_slice(&encoded_vector);
@@ -104,7 +113,10 @@ impl EncodedVectors {
 
     pub fn encode_query(&self, query: &[f32]) -> EncodedQuery {
         let dim = query.len();
-        let mut query: Vec<_> = query.iter().map(|&v| Self::f32_to_u8(v, self.alpha, self.offset)).collect();
+        let mut query: Vec<_> = query
+            .iter()
+            .map(|&v| Self::f32_to_u8(v, self.alpha, self.offset))
+            .collect();
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
                 let placeholder = match self.distance_type {
@@ -116,8 +128,12 @@ impl EncodedVectors {
             }
         }
         let offset = match self.distance_type {
-            DistanceType::Cosine => query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset,
-            DistanceType::L2 => query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.alpha * self.alpha,
+            DistanceType::Cosine => {
+                query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset
+            }
+            DistanceType::L2 => {
+                query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.alpha * self.alpha
+            }
         };
         EncodedQuery {
             offset,
@@ -142,8 +158,7 @@ impl EncodedVectors {
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         {
-            if std::arch::is_aarch64_feature_detected!("neon")
-            {
+            if std::arch::is_aarch64_feature_detected!("neon") {
                 return self.score_point_dot_neon(query, i);
             }
         }
@@ -168,8 +183,7 @@ impl EncodedVectors {
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         {
-            if std::arch::is_aarch64_feature_detected!("neon")
-            {
+            if std::arch::is_aarch64_feature_detected!("neon") {
                 return self.score_points_dot_neon(query, i, scores);
             }
         }
@@ -208,7 +222,12 @@ impl EncodedVectors {
     }
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    pub fn score_points_dot_neon(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
+    pub fn score_points_dot_neon(
+        &self,
+        query: &EncodedQuery,
+        indexes: &[usize],
+        scores: &mut [f32],
+    ) {
         unsafe {
             for (indexes, scores) in indexes.chunks_exact(2).zip(scores.chunks_exact_mut(2)) {
                 let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
@@ -325,11 +344,7 @@ impl EncodedVectors {
 
 #[cfg(target_arch = "x86_64")]
 extern "C" {
-    fn impl_score_dot_avx(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        dim: u32,
-    ) -> f32;
+    fn impl_score_dot_avx(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
 
     fn impl_score_pair_dot_avx(
         query_ptr: *const u8,
@@ -339,11 +354,7 @@ extern "C" {
         result: *mut f32,
     );
 
-    fn impl_score_dot_sse(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        dim: u32,
-    ) -> f32;
+    fn impl_score_dot_sse(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
 
     fn impl_score_pair_dot_sse(
         query_ptr: *const u8,
@@ -356,11 +367,7 @@ extern "C" {
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 extern "C" {
-    fn impl_score_dot_neon(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        dim: u32,
-    ) -> f32;
+    fn impl_score_dot_neon(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
 
     fn impl_score_pair_dot_neon(
         query_ptr: *const u8,

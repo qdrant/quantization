@@ -1,7 +1,7 @@
 use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::encoder::{EncodedVectors, DistanceType};
+use quantization::encoder::{DistanceType, EncodedVectors};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -109,12 +109,9 @@ impl AnnBenchmarkData {
         encoded_data
     }
 
-    pub fn measure_scoring<F>(
-        &self,
-        queries_count: usize,
-        query_function: F,
-    )
-    where F: Fn(&[f32], &mut [f32])
+    pub fn measure_scoring<F>(&self, queries_count: usize, query_function: F)
+    where
+        F: Fn(&[f32], &mut [f32]),
     {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(queries_count as u64));

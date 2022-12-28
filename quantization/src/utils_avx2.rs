@@ -55,4 +55,3 @@ pub unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
     }
     result
 }
-

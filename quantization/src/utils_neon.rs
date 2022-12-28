@@ -1,9 +1,6 @@
 use std::arch::aarch64::*;
 
-pub unsafe fn euclid_neon(
-    v1: &[f32],
-    v2: &[f32],
-) -> f32 {
+pub unsafe fn euclid_neon(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 16);
     let mut ptr1: *const f32 = v1.as_ptr();
@@ -38,10 +35,7 @@ pub unsafe fn euclid_neon(
     result
 }
 
-pub unsafe fn dot_neon(
-    v1: &[f32],
-    v2: &[f32],
-) -> f32 {
+pub unsafe fn dot_neon(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 16);
     let mut ptr1: *const f32 = v1.as_ptr();

@@ -11,6 +11,6 @@ fn main() {
     {
         builder.file("cpp/neon.c");
     }
-    
+
     builder.compile("simd_utils");
 }
