@@ -1,7 +1,7 @@
 use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::encoder::{DistanceType, EncodedVectors};
+use quantization::encoder::{EncodedVectors, SimilarityType};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -90,7 +90,7 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self, distance_type: DistanceType) -> EncodedVectors {
+    pub fn encode_data(&self, distance_type: SimilarityType) -> EncodedVectors {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
         let encoded_data = EncodedVectors::new(
@@ -165,7 +165,7 @@ impl AnnBenchmarkData {
             let query_u8 = encoded.encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let score = postprocess(encoded.score_point_dot(&query_u8, index));
+                let score = postprocess(encoded.score_point(&query_u8, index));
                 let score = Score { index, score };
                 if heap.len() == 30 {
                     let mut top = heap.peek_mut().unwrap();

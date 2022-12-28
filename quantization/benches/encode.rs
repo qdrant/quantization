@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::encoder::{DistanceType, EncodedVectors};
+use quantization::encoder::{EncodedVectors, SimilarityType};
 #[cfg(target_arch = "x86_64")]
 use quantization::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]
@@ -25,7 +25,7 @@ fn encode_bench(c: &mut Criterion) {
             .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         vectors_count,
         vector_dim,
-        DistanceType::Cosine,
+        SimilarityType::Dot,
     )
     .unwrap();
 
@@ -37,7 +37,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             let mut _s = 0.0;
             for i in 0..vectors_count {
-                _s = i8_encoded.score_point_dot_avx(&encoded_query, i);
+                _s = i8_encoded.score_point_avx(&encoded_query, i);
             }
         });
     });
@@ -47,7 +47,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             let mut _s = 0.0;
             for i in 0..vectors_count {
-                _s = i8_encoded.score_point_dot_sse(&encoded_query, i);
+                _s = i8_encoded.score_point_sse(&encoded_query, i);
             }
         });
     });
@@ -57,7 +57,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             let mut _s = 0.0;
             for i in 0..vectors_count {
-                _s = i8_encoded.score_point_dot_neon(&encoded_query, i);
+                _s = i8_encoded.score_point_neon(&encoded_query, i);
             }
         });
     });
@@ -90,7 +90,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             let mut _s = 0.0;
             for &i in &permutation {
-                _s = i8_encoded.score_point_dot_avx(&encoded_query, i);
+                _s = i8_encoded.score_point_avx(&encoded_query, i);
             }
         });
     });
@@ -100,7 +100,7 @@ fn encode_bench(c: &mut Criterion) {
         let mut _s = 0.0;
         b.iter(|| {
             for &i in &permutation {
-                _s = i8_encoded.score_point_dot_sse(&encoded_query, i);
+                _s = i8_encoded.score_point_sse(&encoded_query, i);
             }
         });
     });
@@ -110,7 +110,7 @@ fn encode_bench(c: &mut Criterion) {
         let mut _s = 0.0;
         b.iter(|| {
             for &i in &permutation {
-                _s = i8_encoded.score_point_dot_neon(&encoded_query, i);
+                _s = i8_encoded.score_point_neon(&encoded_query, i);
             }
         });
     });
@@ -153,7 +153,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             for window in permutation.as_slice().chunks_exact(16) {
                 for (i, idx) in window.iter().enumerate() {
-                    scores[i] = i8_encoded.score_point_dot_avx(&encoded_query, *idx);
+                    scores[i] = i8_encoded.score_point_avx(&encoded_query, *idx);
                 }
             }
         });
@@ -165,7 +165,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| {
             for window in permutation.as_slice().chunks_exact(16) {
                 for (i, idx) in window.iter().enumerate() {
-                    scores[i] = i8_encoded.score_point_dot_sse(&encoded_query, *idx);
+                    scores[i] = i8_encoded.score_point_sse(&encoded_query, *idx);
                 }
             }
         });
@@ -176,7 +176,7 @@ fn encode_bench(c: &mut Criterion) {
         let mut scores = vec![0.0; 16];
         b.iter(|| {
             for window in permutation.as_slice().chunks_exact(16) {
-                i8_encoded.score_points_dot_sse(&encoded_query, window, &mut scores);
+                i8_encoded.score_points_sse(&encoded_query, window, &mut scores);
             }
         });
     });
@@ -186,7 +186,7 @@ fn encode_bench(c: &mut Criterion) {
         let mut scores = vec![0.0; 16];
         b.iter(|| {
             for window in permutation.as_slice().chunks_exact(16) {
-                i8_encoded.score_points_dot_avx(&encoded_query, window, &mut scores);
+                i8_encoded.score_points_avx(&encoded_query, window, &mut scores);
             }
         });
     });
