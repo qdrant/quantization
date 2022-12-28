@@ -1,17 +1,14 @@
-mod utils;
+use quantization::encoder::{DistanceType, EncodedVectors};
+use rand::{Rng, SeedableRng};
 
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
-use rand::Rng;
-
-use crate::utils::euclid_similarity;
+use quantization::utils::dot_similarity;
 
 fn main() {
-    // generate vector data and query
-    let vectors_count = 100;
+    let vectors_count = 128;
     let vector_dim = 64;
     let error = vector_dim as f32 * 0.1;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(42);
     let mut vector_data: Vec<Vec<f32>> = Vec::new();
     for _ in 0..vectors_count {
         let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
@@ -19,44 +16,24 @@ fn main() {
     }
     let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
-    // First step, divide the vector dimension into chunks
-    let chunks = EncodedVectors::create_dim_partition(vector_dim, 2);
-
-    // Second step, encode the vector data
     let encoded = EncodedVectors::new(
         vector_data.iter().map(|v| v.as_slice()),
         vectors_count,
         vector_dim,
-        &chunks,
+        DistanceType::Cosine,
     )
     .unwrap();
+    let query_u8 = encoded.encode_query(&query);
 
-    // Third step, create lookup table - LUT. That's an encoding of the query
-    let scorer: SimpleScorer = encoded.scorer(&query, euclid_similarity);
+    let indexes = (0..vectors_count).collect::<Vec<_>>();
+    let mut scores = vec![0.0; vectors_count];
+    encoded.score_points_dot_simple(&query_u8, &indexes, &mut scores);
 
-    // score query
     for i in 0..vectors_count {
-        // encoded score
-        let score = scorer.score_point(i);
-        let orginal_score = euclid_similarity(&query, &vector_data[i]);
-        // decoded vector
-        let decoded = encoded.decode_vector(i);
-        // check if the decoded vector is the same as the original vector
-        let diff: f32 = decoded
-            .iter()
-            .zip(vector_data[i].iter())
-            .map(|(a, b)| (a - b).abs())
-            .fold(0.0, |a, b| if a > b { a } else { b });
-        assert!(diff < 0.3);
+        let score = encoded.score_point_dot_simple(&query_u8, i);
+        let score2 = scores[i];
+        let orginal_score = dot_similarity(&query, &vector_data[i]);
         assert!((score - orginal_score).abs() < error);
-    }
-
-    // score between points
-    let point_id = 0;
-    for i in 0..vectors_count {
-        // encoded score
-        let score = encoded.score_between_points(point_id, i, euclid_similarity);
-        let orginal_score = euclid_similarity(&vector_data[point_id], &vector_data[i]);
-        assert!((score - orginal_score).abs() < error);
+        assert!((score2 - orginal_score).abs() < error);
     }
 }

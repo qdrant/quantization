@@ -1,8 +1,7 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 
-use crate::utils::{cosine_preprocess, same_count, Score};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::{encoded_vectors::EncodedVectors, scorer::Scorer, simple_scorer::SimpleScorer};
+use quantization::encoder::{DistanceType, EncodedVectors};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -11,6 +10,26 @@ pub struct AnnBenchmarkData {
     pub queries: ndarray::Array2<f32>,
     pub queries_count: usize,
     pub neighbors: Vec<Vec<Score>>,
+}
+
+#[derive(PartialEq, Clone, Debug, Default)]
+pub struct Score {
+    pub index: usize,
+    pub score: f32,
+}
+
+impl Eq for Score {}
+
+impl std::cmp::PartialOrd for Score {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for Score {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.score.partial_cmp(&other.score).unwrap()
+    }
 }
 
 impl AnnBenchmarkData {
@@ -71,10 +90,9 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self, chunk_size: usize) -> EncodedVectors {
+    pub fn encode_data(&self, distance_type: DistanceType) -> EncodedVectors {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let chunks = EncodedVectors::create_dim_partition(self.dim, chunk_size);
         let encoded_data = EncodedVectors::new(
             self.vectors
                 .rows()
@@ -82,16 +100,49 @@ impl AnnBenchmarkData {
                 .map(|row| row.to_slice().unwrap()),
             self.vectors_count,
             self.dim,
-            &chunks,
+            distance_type,
         )
         .unwrap();
         println!("encoding time: {:?}", timer.elapsed());
         println!("Original data size: {}", self.vectors_count * self.dim * 4);
-        println!("Encoded data size: {}", encoded_data.data_size());
+        //println!("Encoded data size: {}", encoded_data.data_size());
         encoded_data
     }
 
-    pub fn test_encoded(&self, encoded: &EncodedVectors, similarity: fn(&[f32], &[f32]) -> f32) {
+    pub fn measure_scoring<F>(&self, queries_count: usize, query_function: F)
+    where
+        F: Fn(&[f32], &mut [f32]),
+    {
+        let multiprogress = MultiProgress::new();
+        let sent_bar = multiprogress.add(ProgressBar::new(queries_count as u64));
+        let progress_style = ProgressStyle::default_bar()
+            .template("{msg} [{elapsed_precise}] {wide_bar} [{per_sec:>3}] {pos}/{len} (eta:{eta})")
+            .expect("Failed to create progress style");
+        sent_bar.set_style(progress_style);
+
+        let mut scores = vec![0.0; self.vectors_count];
+        let mut timings = Vec::new();
+
+        for query in self
+            .queries
+            .rows()
+            .into_iter()
+            .take(queries_count)
+            .map(|q| q.to_slice().unwrap())
+        {
+            let timer = std::time::Instant::now();
+            query_function(query, &mut scores);
+            timings.push(timer.elapsed().as_millis() as f64);
+            sent_bar.inc(1);
+        }
+        sent_bar.finish();
+        Self::print_timings(&mut timings);
+    }
+
+    pub fn test_knn<F>(&self, encoded: &EncodedVectors, postprocess: F)
+    where
+        F: Fn(f32) -> f32,
+    {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(self.queries_count as u64));
         let progress_style = ProgressStyle::default_bar()
@@ -100,8 +151,8 @@ impl AnnBenchmarkData {
         sent_bar.set_style(progress_style);
 
         let mut same_10 = 0.0;
+        let mut same_20 = 0.0;
         let mut same_30 = 0.0;
-        let mut same_100 = 0.0;
         let mut timings = Vec::new();
         for (j, query) in self
             .queries
@@ -111,12 +162,12 @@ impl AnnBenchmarkData {
             .enumerate()
         {
             let timer = std::time::Instant::now();
-            let scorer: SimpleScorer = encoded.scorer(&query, &similarity);
+            let query_u8 = encoded.encode_query(&query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
-                let score = 1.0 - scorer.score_point(index);
+                let score = postprocess(encoded.score_point_dot(&query_u8, index));
                 let score = Score { index, score };
-                if heap.len() == 100 {
+                if heap.len() == 30 {
                     let mut top = heap.peek_mut().unwrap();
                     if top.score > score.score {
                         *top = score;
@@ -127,8 +178,8 @@ impl AnnBenchmarkData {
             }
             let knn = heap.into_sorted_vec();
             same_10 += same_count(&knn[0..10], &self.neighbors[j]) as f32;
-            same_30 += same_count(&knn[0..30], &self.neighbors[j]) as f32;
-            same_100 += same_count(&knn, &self.neighbors[j]) as f32;
+            same_20 += same_count(&knn[0..20], &self.neighbors[j]) as f32;
+            same_30 += same_count(&knn, &self.neighbors[j]) as f32;
 
             timings.push(timer.elapsed().as_millis() as f64);
             sent_bar.inc(1);
@@ -136,12 +187,12 @@ impl AnnBenchmarkData {
         sent_bar.finish();
 
         same_10 /= self.queries_count as f32;
+        same_20 /= self.queries_count as f32;
         same_30 /= self.queries_count as f32;
-        same_100 /= self.queries_count as f32;
         println!("queries count: {}", self.queries_count);
         println!("same_10: {}", same_10);
+        println!("same_20: {}", same_20);
         println!("same_30: {}", same_30);
-        println!("same_100: {}", same_100);
         Self::print_timings(&mut timings);
     }
 
@@ -179,4 +230,19 @@ impl AnnBenchmarkData {
         println!("p99 search time: {}ms", p99_time);
         println!("Max search time: {}ms", max_time);
     }
+}
+
+pub fn cosine_preprocess(vector: &mut [f32]) {
+    let mut length: f32 = vector.iter().map(|x| x * x).sum();
+    if length < f32::EPSILON {
+        return;
+    }
+    length = length.sqrt();
+    vector.iter_mut().for_each(|x| *x = *x / length);
+}
+
+pub fn same_count(a: &[Score], b: &[Score]) -> usize {
+    let a = a.iter().map(|s| s.index).collect::<HashSet<_>>();
+    let b = b.iter().map(|s| s.index).collect::<HashSet<_>>();
+    a.intersection(&b).count()
 }
