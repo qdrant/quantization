@@ -19,12 +19,11 @@ fn encode_bench(c: &mut Criterion) {
         list.extend_from_slice(&vector);
     }
 
-    let i8_encoded = EncodedVectors::new(
+    let i8_encoded = EncodedVectors::encode(
         (0..vectors_count)
             .into_iter()
             .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
-        vectors_count,
-        vector_dim,
+        Vec::<u8>::new(),
         SimilarityType::Dot,
     )
     .unwrap();

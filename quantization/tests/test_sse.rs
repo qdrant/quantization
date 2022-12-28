@@ -22,10 +22,9 @@ mod tests {
         }
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
-        let encoded = EncodedVectors::new(
+        let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
-            vectors_count,
-            vector_dim,
+            Vec::<u8>::new(),
             SimilarityType::Dot,
         )
         .unwrap();
@@ -59,10 +58,9 @@ mod tests {
         }
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
-        let encoded = EncodedVectors::new(
+        let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
-            vectors_count,
-            vector_dim,
+            Vec::<u8>::new(),
             SimilarityType::L2,
         )
         .unwrap();

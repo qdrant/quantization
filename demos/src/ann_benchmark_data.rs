@@ -90,16 +90,15 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self, distance_type: SimilarityType) -> EncodedVectors {
+    pub fn encode_data(&self, distance_type: SimilarityType) -> EncodedVectors<Vec<u8>> {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let encoded_data = EncodedVectors::new(
+        let encoded_data = EncodedVectors::encode(
             self.vectors
                 .rows()
                 .into_iter()
                 .map(|row| row.to_slice().unwrap()),
-            self.vectors_count,
-            self.dim,
+            Vec::<u8>::new(),
             distance_type,
         )
         .unwrap();
@@ -139,7 +138,7 @@ impl AnnBenchmarkData {
         Self::print_timings(&mut timings);
     }
 
-    pub fn test_knn<F>(&self, encoded: &EncodedVectors, postprocess: F)
+    pub fn test_knn<F>(&self, encoded: &EncodedVectors<Vec<u8>>, postprocess: F)
     where
         F: Fn(f32) -> f32,
     {

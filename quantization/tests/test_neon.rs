@@ -25,8 +25,7 @@ mod tests {
 
         let encoded = EncodedVectors::new(
             vector_data.iter().map(|v| v.as_slice()),
-            vectors_count,
-            vector_dim,
+            Vec::<u8>::new(),
             DistanceType::Cosine,
         )
         .unwrap();
@@ -62,8 +61,7 @@ mod tests {
 
         let encoded = EncodedVectors::new(
             vector_data.iter().map(|v| v.as_slice()),
-            vectors_count,
-            vector_dim,
+            Vec::<u8>::new(),
             DistanceType::L2,
         )
         .unwrap();

@@ -24,5 +24,5 @@ name = "basic"
 path = "src/basic.rs"
 
 [[bin]]
-name = "glove_100_angular"
-path = "src/glove_100_angular.rs"
+name = "ann_benchmark"
+path = "src/ann_benchmark.rs"

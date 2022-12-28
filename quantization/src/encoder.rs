@@ -6,8 +6,18 @@ pub enum SimilarityType {
     Dot,
 }
 
-pub struct EncodedVectors {
-    pub encoded_vectors: Vec<u8>,
+pub trait Storage {
+    fn ptr(&self) -> *const u8;
+}
+
+pub trait StorageBuilder<TStorage: Storage> {
+    fn build(self) -> TStorage;
+
+    fn extend_from_slice(&mut self, other: &[u8]);
+}
+
+pub struct EncodedVectors<TStorage: Storage> {
+    pub encoded_vectors: TStorage,
     pub dim: usize,
     pub actual_dim: usize,
     pub alpha: f32,
@@ -21,16 +31,14 @@ pub struct EncodedQuery {
     pub encoded_query: Vec<u8>,
 }
 
-impl EncodedVectors {
-    pub fn new<'a>(
+impl<TStorage: Storage> EncodedVectors<TStorage> {
+    pub fn encode<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
-        vectors_count: usize,
-        dim: usize,
+        mut storage_builder: impl StorageBuilder<TStorage>,
         distance_type: SimilarityType,
-    ) -> Result<EncodedVectors, String> {
-        let (alpha, offset) = Self::find_alpha_offset(orig_data.clone());
+    ) -> Result<EncodedVectors<TStorage>, String> {
+        let (alpha, offset, _, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
-        let mut encoded_vectors = Vec::with_capacity(vectors_count * dim);
         for vector in orig_data {
             let mut encoded_vector = Vec::new();
             for &value in vector {
@@ -62,8 +70,8 @@ impl EncodedVectors {
                             * alpha
                 }
             };
-            encoded_vectors.extend_from_slice(&vector_offset.to_ne_bytes());
-            encoded_vectors.extend_from_slice(&encoded_vector);
+            storage_builder.extend_from_slice(&vector_offset.to_ne_bytes());
+            storage_builder.extend_from_slice(&encoded_vector);
         }
         let multiplier = match distance_type {
             SimilarityType::Dot => alpha * alpha,
@@ -71,7 +79,7 @@ impl EncodedVectors {
         };
 
         Ok(EncodedVectors {
-            encoded_vectors,
+            encoded_vectors: storage_builder.build(),
             dim: extended_dim,
             actual_dim: dim,
             alpha,
@@ -329,10 +337,14 @@ impl EncodedVectors {
         }
     }
 
-    fn find_alpha_offset<'a>(orig_data: impl IntoIterator<Item = &'a [f32]>) -> (f32, f32) {
+    fn find_alpha_offset_size_dim<'a>(orig_data: impl IntoIterator<Item = &'a [f32]>) -> (f32, f32, usize, usize) {
         let mut min = f32::MAX;
         let mut max = f32::MIN;
+        let mut count: usize = 0;
+        let mut dim: usize = 0;
         for vector in orig_data {
+            count += 1;
+            dim = dim.max(vector.len());
             for &value in vector {
                 if value < min {
                     min = value;
@@ -344,7 +356,7 @@ impl EncodedVectors {
         }
         let alpha = (max - min) / 127.0;
         let offset = min;
-        (alpha, offset)
+        (alpha, offset, count, dim)
     }
 
     fn f32_to_u8(i: f32, alpha: f32, offset: f32) -> u8 {
@@ -356,10 +368,26 @@ impl EncodedVectors {
     fn get_vec_ptr(&self, i: usize) -> (f32, *const u8) {
         unsafe {
             let vector_data_size = self.dim + std::mem::size_of::<f32>();
-            let v_ptr = self.encoded_vectors.as_ptr().add(i * vector_data_size);
+            let v_ptr = self.encoded_vectors.ptr().add(i * vector_data_size);
             let vector_offset = *(v_ptr as *const f32);
             (vector_offset, v_ptr.add(std::mem::size_of::<f32>()))
         }
+    }
+}
+
+impl Storage for Vec<u8> {
+    fn ptr(&self) -> *const u8 {
+        self.as_ptr()
+    }
+}
+
+impl StorageBuilder<Vec<u8>> for Vec<u8> {
+    fn build(self) -> Vec<u8> {
+        self
+    }
+
+    fn extend_from_slice(&mut self, other: &[u8]) {
+        self.extend_from_slice(other);
     }
 }
 
