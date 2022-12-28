@@ -12,6 +12,7 @@ pub(crate) unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
 
 #[target_feature(enable = "avx")]
 #[target_feature(enable = "fma")]
+#[allow(clippy::missing_safety_doc)]
 pub unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 32);

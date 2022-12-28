@@ -71,8 +71,7 @@ const DATASETS: [(&str, &str, SimilarityType); 11] = [
 ];
 
 fn main() {
-    for i in 0..11 {
-        let dataset = &DATASETS[i];
+    for dataset in &DATASETS {
         let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
         if dataset.2 == SimilarityType::Dot {
             data.cosine_preprocess();
@@ -90,7 +89,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &linear_indices {
                     scores[index] =
-                        unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_avx(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -99,7 +98,7 @@ fn main() {
         {
             println!("Measure Quantized AVX2 linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &linear_indices {
                     scores[index] = encoded.score_point_avx(&query_u8, index);
                 }
@@ -110,7 +109,7 @@ fn main() {
         {
             println!("Measure Quantized chunked AVX2 linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_avx(&encoded_query, &linear_indices, scores);
             });
         }
@@ -121,7 +120,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &linear_indices {
                     scores[index] =
-                        unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_sse(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -130,7 +129,7 @@ fn main() {
         {
             println!("Measure Quantized SSE linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &linear_indices {
                     scores[index] = encoded.score_point_sse(&query_u8, index);
                 }
@@ -141,7 +140,7 @@ fn main() {
         {
             println!("Measure Quantized chunked SSE linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_sse(&encoded_query, &linear_indices, scores);
             });
         }
@@ -153,7 +152,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &linear_indices {
                     scores[index] =
-                        unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_neon(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -163,7 +162,7 @@ fn main() {
         {
             println!("Measure Quantized NEON linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &linear_indices {
                     scores[index] = encoded.score_point_neon(&query_u8, index);
                 }
@@ -175,7 +174,7 @@ fn main() {
         {
             println!("Measure Quantized chunked NOEN linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_neon(&encoded_query, &linear_indices, scores);
             });
         }
@@ -186,7 +185,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &random_indices {
                     scores[index] =
-                        unsafe { dot_avx(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_avx(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -195,7 +194,7 @@ fn main() {
         {
             println!("Measure Quantized AVX2 random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &random_indices {
                     scores[index] = encoded.score_point_avx(&query_u8, index);
                 }
@@ -206,7 +205,7 @@ fn main() {
         {
             println!("Measure Quantized chunked AVX2 random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_avx(&encoded_query, &random_indices, scores);
             });
         }
@@ -217,7 +216,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &random_indices {
                     scores[index] =
-                        unsafe { dot_sse(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_sse(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -226,7 +225,7 @@ fn main() {
         {
             println!("Measure Quantized SSE random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &random_indices {
                     scores[index] = encoded.score_point_sse(&query_u8, index);
                 }
@@ -237,7 +236,7 @@ fn main() {
         {
             println!("Measure Quantized chunked SSE random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_sse(&encoded_query, &random_indices, scores);
             });
         }
@@ -249,7 +248,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &random_indices {
                     scores[index] =
-                        unsafe { dot_neon(&query, data.vectors.row(index).as_slice().unwrap()) };
+                        unsafe { dot_neon(query, data.vectors.row(index).as_slice().unwrap()) };
                 }
             });
         }
@@ -259,7 +258,7 @@ fn main() {
         {
             println!("Measure Quantized NEON random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let query_u8 = encoded.encode_query(&query);
+                let query_u8 = encoded.encode_query(query);
                 for &index in &random_indices {
                     scores[index] = encoded.score_point_neon(&query_u8, index);
                 }
@@ -271,7 +270,7 @@ fn main() {
         {
             println!("Measure Quantized chunked NEON random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
-                let encoded_query = encoded.encode_query(&query);
+                let encoded_query = encoded.encode_query(query);
                 encoded.score_points_neon(&encoded_query, &random_indices, scores);
             });
         }

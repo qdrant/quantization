@@ -162,7 +162,7 @@ impl AnnBenchmarkData {
             .enumerate()
         {
             let timer = std::time::Instant::now();
-            let query_u8 = encoded.encode_query(&query);
+            let query_u8 = encoded.encode_query(query);
             let mut heap: BinaryHeap<Score> = BinaryHeap::new();
             for index in 0..self.vectors_count {
                 let score = postprocess(encoded.score_point(&query_u8, index));
@@ -238,7 +238,7 @@ pub fn cosine_preprocess(vector: &mut [f32]) {
         return;
     }
     length = length.sqrt();
-    vector.iter_mut().for_each(|x| *x = *x / length);
+    vector.iter_mut().for_each(|x| *x /= length);
 }
 
 pub fn same_count(a: &[Score], b: &[Score]) -> usize {

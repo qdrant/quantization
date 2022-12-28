@@ -349,14 +349,7 @@ impl EncodedVectors {
 
     fn f32_to_u8(i: f32, alpha: f32, offset: f32) -> u8 {
         let i = (i - offset) / alpha;
-        let i = if i > 127.0 {
-            127.0
-        } else if i < 0.0 {
-            0.0
-        } else {
-            i
-        };
-        i as u8
+        i.clamp(0.0, 127.0) as u8
     }
 
     #[inline]

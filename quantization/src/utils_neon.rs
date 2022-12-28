@@ -1,5 +1,6 @@
 use std::arch::aarch64::*;
 
+#[allow(clippy::missing_safety_doc)]
 pub unsafe fn euclid_neon(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();
     let m = n - (n % 16);
