@@ -1,6 +1,15 @@
-pub const ALIGHMENT: usize = 16;
+use std::path::Path;
+use std::io::prelude::*;
+use std::fs::File;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use atomicwrites::AtomicFile;
+use atomicwrites::OverwriteBehavior::AllowOverwrite;
+use serde::{Serialize, Deserialize};
+
+pub const ALIGHMENT: usize = 16;
+pub const FILE_HEADER_MAGIC_NUMBER: u64 = 0x00_DD_91_12_FA_BB_09_01;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimilarityType {
     L2,
     Dot,
@@ -8,6 +17,10 @@ pub enum SimilarityType {
 
 pub trait Storage {
     fn ptr(&self) -> *const u8;
+
+    fn as_slice(&self) -> &[u8];
+
+    fn from_file(path: &Path) -> std::io::Result<Self> where Self: Sized;
 }
 
 pub trait StorageBuilder<TStorage: Storage> {
@@ -17,26 +30,54 @@ pub trait StorageBuilder<TStorage: Storage> {
 }
 
 pub struct EncodedVectors<TStorage: Storage> {
-    pub encoded_vectors: TStorage,
-    pub dim: usize,
-    pub actual_dim: usize,
-    pub alpha: f32,
-    pub offset: f32,
-    pub distance_type: SimilarityType,
-    pub multiplier: f32,
+    encoded_vectors: TStorage,
+    metadata: Metadata,
 }
 
 pub struct EncodedQuery {
-    pub offset: f32,
-    pub encoded_query: Vec<u8>,
+    offset: f32,
+    encoded_query: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Metadata {
+    dim: usize,
+    alpha: f32,
+    offset: f32,
+    multiplier: f32,
+    distance_type: SimilarityType,
 }
 
 impl<TStorage: Storage> EncodedVectors<TStorage> {
+    pub fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()> {
+        let mut buffer = File::create(data_path)?;
+        buffer.write_all(self.encoded_vectors.as_slice())?;
+
+        let af = AtomicFile::new(meta_path, AllowOverwrite);
+        let state_bytes = serde_json::to_vec(&self.metadata)?;
+        af.write(|f| f.write_all(&state_bytes))?;
+        Ok(())
+    }
+
+    pub fn load(data_path: &Path, meta_path: &Path) -> std::io::Result<Self>
+    {
+        let mut contents = String::new();
+        let mut file = File::open(meta_path)?;
+        file.read_to_string(&mut contents)?;
+        let metadata: Metadata = serde_json::from_str(&contents)?;
+        let encoded_vectors = TStorage::from_file(data_path)?;
+        let result = Self {
+            metadata,
+            encoded_vectors,
+        };
+        Ok(result)
+    }
+
     pub fn encode<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl StorageBuilder<TStorage>,
         distance_type: SimilarityType,
-    ) -> Result<EncodedVectors<TStorage>, String> {
+    ) -> Result<Self, String> {
         let (alpha, offset, _, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
         for vector in orig_data {
@@ -80,12 +121,13 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 
         Ok(EncodedVectors {
             encoded_vectors: storage_builder.build(),
-            dim: extended_dim,
-            actual_dim: dim,
-            alpha,
-            offset,
-            distance_type,
-            multiplier,
+            metadata: Metadata {
+                dim: extended_dim,
+                alpha,
+                offset,
+                distance_type,
+                multiplier,
+            },
         })
     }
 
@@ -93,24 +135,24 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         let dim = query.len();
         let mut query: Vec<_> = query
             .iter()
-            .map(|&v| Self::f32_to_u8(v, self.alpha, self.offset))
+            .map(|&v| Self::f32_to_u8(v, self.metadata.alpha, self.metadata.offset))
             .collect();
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                let placeholder = match self.distance_type {
+                let placeholder = match self.metadata.distance_type {
                     SimilarityType::Dot => 0.0,
-                    SimilarityType::L2 => self.offset,
+                    SimilarityType::L2 => self.metadata.offset,
                 };
-                let endoded = Self::f32_to_u8(placeholder, self.alpha, self.offset);
+                let endoded = Self::f32_to_u8(placeholder, self.metadata.alpha, self.metadata.offset);
                 query.push(endoded);
             }
         }
-        let offset = match self.distance_type {
+        let offset = match self.metadata.distance_type {
             SimilarityType::Dot => {
-                query.iter().map(|&x| x as f32).sum::<f32>() * self.alpha * self.offset
+                query.iter().map(|&x| x as f32).sum::<f32>() * self.metadata.alpha * self.metadata.offset
             }
             SimilarityType::L2 => {
-                query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.alpha * self.alpha
+                query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.metadata.alpha * self.metadata.alpha
             }
         };
         EncodedQuery {
@@ -126,16 +168,16 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.dim as u32);
-                return self.multiplier * score + query.offset + vector_offset;
+                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.dim as u32);
+                return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
             if is_x86_feature_detected!("sse") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.dim as u32);
-                return self.multiplier * score + query.offset + vector_offset;
+                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.dim as u32);
+                return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
 
@@ -182,16 +224,16 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.dim as u32);
-                return self.multiplier * score + query_offset + vector_offset;
+                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.dim as u32);
+                return self.metadata.multiplier * score + query_offset + vector_offset;
             }
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
             if is_x86_feature_detected!("sse") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.dim as u32);
-                return self.multiplier * score + query_offset + vector_offset;
+                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.dim as u32);
+                return self.metadata.multiplier * score + query_offset + vector_offset;
             }
         }
 
@@ -205,10 +247,10 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 
         unsafe {
             let mut mul = 0i32;
-            for i in 0..self.dim {
+            for i in 0..self.metadata.dim {
                 mul += (*q_ptr.add(i)) as i32 * (*v_ptr.add(i)) as i32;
             }
-            self.multiplier * mul as f32 + query_offset + vector_offset
+            self.metadata.multiplier * mul as f32 + query_offset + vector_offset
         }
     }
 
@@ -216,10 +258,10 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let mut mul = 0i32;
-            for i in 0..self.dim {
+            for i in 0..self.metadata.dim {
                 mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
             }
-            self.multiplier * mul as f32 + query.offset + vector_offset
+            self.metadata.multiplier * mul as f32 + query.offset + vector_offset
         }
     }
 
@@ -272,9 +314,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let score = impl_score_dot_sse(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
-                self.dim as u32,
+                self.metadata.dim as u32,
             );
-            self.multiplier * score + query.offset + vector_offset
+            self.metadata.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -288,11 +330,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.dim as u32,
+                    self.metadata.dim as u32,
                     scores.as_mut_ptr(),
                 );
-                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
-                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
+                scores[0] = self.metadata.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.metadata.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
@@ -308,9 +350,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let score = impl_score_dot_avx(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
-                self.dim as u32,
+                self.metadata.dim as u32,
             );
-            self.multiplier * score + query.offset + vector_offset
+            self.metadata.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -324,11 +366,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.dim as u32,
+                    self.metadata.dim as u32,
                     scores.as_mut_ptr(),
                 );
-                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
-                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
+                scores[0] = self.metadata.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.metadata.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
@@ -367,7 +409,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     #[inline]
     fn get_vec_ptr(&self, i: usize) -> (f32, *const u8) {
         unsafe {
-            let vector_data_size = self.dim + std::mem::size_of::<f32>();
+            let vector_data_size = self.metadata.dim + std::mem::size_of::<f32>();
             let v_ptr = self.encoded_vectors.ptr().add(i * vector_data_size);
             let vector_offset = *(v_ptr as *const f32);
             (vector_offset, v_ptr.add(std::mem::size_of::<f32>()))
@@ -378,6 +420,17 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 impl Storage for Vec<u8> {
     fn ptr(&self) -> *const u8 {
         self.as_ptr()
+    }
+
+    fn as_slice(&self) -> &[u8] {
+        self.as_slice()
+    }
+
+    fn from_file(path: &Path) -> std::io::Result<Self> {
+        let mut file = File::open(path)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+        Ok(buffer)
     }
 }
 
