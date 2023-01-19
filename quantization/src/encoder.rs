@@ -1,10 +1,10 @@
-use std::path::Path;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
+use std::path::Path;
 
 use atomicwrites::AtomicFile;
 use atomicwrites::OverwriteBehavior::AllowOverwrite;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub const ALIGHMENT: usize = 16;
 pub const FILE_HEADER_MAGIC_NUMBER: u64 = 0x00_DD_91_12_FA_BB_09_01;
@@ -20,7 +20,9 @@ pub trait Storage {
 
     fn as_slice(&self) -> &[u8];
 
-    fn from_file(path: &Path) -> std::io::Result<Self> where Self: Sized;
+    fn from_file(path: &Path) -> std::io::Result<Self>
+    where
+        Self: Sized;
 }
 
 pub trait StorageBuilder<TStorage: Storage> {
@@ -59,8 +61,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         Ok(())
     }
 
-    pub fn load(data_path: &Path, meta_path: &Path) -> std::io::Result<Self>
-    {
+    pub fn load(data_path: &Path, meta_path: &Path) -> std::io::Result<Self> {
         let mut contents = String::new();
         let mut file = File::open(meta_path)?;
         file.read_to_string(&mut contents)?;
@@ -143,16 +144,21 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     SimilarityType::Dot => 0.0,
                     SimilarityType::L2 => self.metadata.offset,
                 };
-                let endoded = Self::f32_to_u8(placeholder, self.metadata.alpha, self.metadata.offset);
+                let endoded =
+                    Self::f32_to_u8(placeholder, self.metadata.alpha, self.metadata.offset);
                 query.push(endoded);
             }
         }
         let offset = match self.metadata.distance_type {
             SimilarityType::Dot => {
-                query.iter().map(|&x| x as f32).sum::<f32>() * self.metadata.alpha * self.metadata.offset
+                query.iter().map(|&x| x as f32).sum::<f32>()
+                    * self.metadata.alpha
+                    * self.metadata.offset
             }
             SimilarityType::L2 => {
-                query.iter().map(|&x| x as f32 * x as f32).sum::<f32>() * self.metadata.alpha * self.metadata.alpha
+                query.iter().map(|&x| x as f32 * x as f32).sum::<f32>()
+                    * self.metadata.alpha
+                    * self.metadata.alpha
             }
         };
         EncodedQuery {
@@ -379,7 +385,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         }
     }
 
-    fn find_alpha_offset_size_dim<'a>(orig_data: impl IntoIterator<Item = &'a [f32]>) -> (f32, f32, usize, usize) {
+    fn find_alpha_offset_size_dim<'a>(
+        orig_data: impl IntoIterator<Item = &'a [f32]>,
+    ) -> (f32, f32, usize, usize) {
         let mut min = f32::MAX;
         let mut max = f32::MIN;
         let mut count: usize = 0;
