@@ -226,12 +226,14 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     pub fn score_internal(&self, i: usize, j: usize) -> f32 {
         let (query_offset, q_ptr) = self.get_vec_ptr(i);
         let (vector_offset, v_ptr) = self.get_vec_ptr(j);
+        let offset = query_offset + vector_offset
+            - self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
 
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
                 let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.dim as u32);
-                return self.metadata.multiplier * score + query_offset + vector_offset;
+                return self.metadata.multiplier * score + offset;
             }
         }
 
@@ -239,7 +241,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         unsafe {
             if is_x86_feature_detected!("sse") {
                 let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.dim as u32);
-                return self.metadata.multiplier * score + query_offset + vector_offset;
+                return self.metadata.multiplier * score + offset;
             }
         }
 
@@ -247,7 +249,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         unsafe {
             if std::arch::is_aarch64_feature_detected!("neon") {
                 let score = impl_score_dot_neon(q_ptr, v_ptr, self.dim as u32);
-                return self.multiplier * score + query.offset + vector_offset;
+                return self.metadata.multiplier * score + offset;
             }
         }
 
@@ -256,7 +258,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             for i in 0..self.metadata.dim {
                 mul += (*q_ptr.add(i)) as i32 * (*v_ptr.add(i)) as i32;
             }
-            self.metadata.multiplier * mul as f32 + query_offset + vector_offset
+            self.metadata.multiplier * mul as f32 + offset
         }
     }
 
@@ -286,7 +288,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                 v_ptr,
                 self.dim as u32,
             );
-            self.multiplier * score + query.offset + vector_offset
+            self.metadata.multiplier * score + query.offset + vector_offset
         }
     }
 
@@ -303,8 +305,8 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     self.dim as u32,
                     scores.as_mut_ptr(),
                 );
-                scores[0] = self.multiplier * scores[0] + query.offset + vector1_offset;
-                scores[1] = self.multiplier * scores[1] + query.offset + vector2_offset;
+                scores[0] = self.metadata.multiplier * scores[0] + query.offset + vector1_offset;
+                scores[1] = self.metadata.multiplier * scores[1] + query.offset + vector2_offset;
             }
             if indexes.len() % 2 == 1 {
                 let idx = indexes.len() - 1;
