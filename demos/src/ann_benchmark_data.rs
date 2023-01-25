@@ -100,6 +100,7 @@ impl AnnBenchmarkData {
                 .map(|row| row.to_slice().unwrap()),
             Vec::<u8>::new(),
             distance_type,
+            false,
         )
         .unwrap();
         println!("encoding time: {:?}", timer.elapsed());

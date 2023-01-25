@@ -25,6 +25,7 @@ fn encode_bench(c: &mut Criterion) {
             .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         Vec::<u8>::new(),
         SimilarityType::Dot,
+        false,
     )
     .unwrap();
 

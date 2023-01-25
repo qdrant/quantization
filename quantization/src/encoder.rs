@@ -48,6 +48,7 @@ struct Metadata {
     offset: f32,
     multiplier: f32,
     distance_type: SimilarityType,
+    invert: bool,
 }
 
 impl<TStorage: Storage> EncodedVectors<TStorage> {
@@ -78,6 +79,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl StorageBuilder<TStorage>,
         distance_type: SimilarityType,
+        invert: bool,
     ) -> Result<Self, String> {
         let (alpha, offset, _, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
@@ -112,6 +114,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                             * alpha
                 }
             };
+            let vector_offset = if invert {
+                -vector_offset
+            } else {
+                vector_offset
+            };
             storage_builder.extend_from_slice(&vector_offset.to_ne_bytes());
             storage_builder.extend_from_slice(&encoded_vector);
         }
@@ -119,6 +126,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             SimilarityType::Dot => alpha * alpha,
             SimilarityType::L2 => -2.0 * alpha * alpha,
         };
+        let multiplier = if invert { -multiplier } else { multiplier };
 
         Ok(EncodedVectors {
             encoded_vectors: storage_builder.build(),
@@ -128,6 +136,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                 offset,
                 distance_type,
                 multiplier,
+                invert,
             },
         })
     }
@@ -160,6 +169,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     * self.metadata.alpha
                     * self.metadata.alpha
             }
+        };
+        let offset = if self.metadata.invert {
+            -offset
+        } else {
+            offset
         };
         EncodedQuery {
             offset,
@@ -226,8 +240,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     pub fn score_internal(&self, i: usize, j: usize) -> f32 {
         let (query_offset, q_ptr) = self.get_vec_ptr(i);
         let (vector_offset, v_ptr) = self.get_vec_ptr(j);
-        let offset = query_offset + vector_offset
-            - self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
+        let diff = self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
+        let diff = if self.metadata.invert { -diff } else { diff };
+        let offset = query_offset + vector_offset - diff;
 
         #[cfg(target_arch = "x86_64")]
         unsafe {

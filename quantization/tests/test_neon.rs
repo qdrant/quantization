@@ -27,6 +27,7 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             DistanceType::Cosine,
+            false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -63,6 +64,7 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             DistanceType::L2,
+            false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);

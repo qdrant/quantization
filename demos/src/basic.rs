@@ -20,6 +20,7 @@ fn main() {
         vector_data.iter().map(|v| v.as_slice()),
         Vec::<u8>::new(),
         SimilarityType::Dot,
+        false,
     )
     .unwrap();
     let query_u8 = encoded.encode_query(&query);
