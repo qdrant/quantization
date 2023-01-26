@@ -36,7 +36,7 @@ fn encode_bench(c: &mut Criterion) {
     group.bench_function("score all u8 avx", |b| {
         b.iter(|| {
             let mut _s = 0.0;
-            for i in 0..vectors_count {
+            for i in 0..vectors_count as u32 {
                 _s = i8_encoded.score_point_avx(&encoded_query, i);
             }
         });
@@ -46,7 +46,7 @@ fn encode_bench(c: &mut Criterion) {
     group.bench_function("score all u8 sse", |b| {
         b.iter(|| {
             let mut _s = 0.0;
-            for i in 0..vectors_count {
+            for i in 0..vectors_count as u32 {
                 _s = i8_encoded.score_point_sse(&encoded_query, i);
             }
         });
@@ -83,7 +83,7 @@ fn encode_bench(c: &mut Criterion) {
     });
 
     let permutor = Permutor::new(vectors_count as u64);
-    let permutation: Vec<usize> = permutor.map(|i| i as usize).collect();
+    let permutation: Vec<u32> = permutor.map(|i| i as u32).collect();
 
     #[cfg(target_arch = "x86_64")]
     group.bench_function("score random access u8 avx", |b| {
@@ -120,6 +120,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| unsafe {
             let mut _s = 0.0;
             for &i in &permutation {
+                let i = i as usize;
                 _s = dot_avx(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
@@ -130,6 +131,7 @@ fn encode_bench(c: &mut Criterion) {
         let mut _s = 0.0;
         b.iter(|| unsafe {
             for &i in &permutation {
+                let i = i as usize;
                 _s = dot_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
             }
         });
@@ -141,6 +143,7 @@ fn encode_bench(c: &mut Criterion) {
         b.iter(|| unsafe {
             for window in permutation.as_slice().chunks_exact(16) {
                 for (i, idx) in window.iter().enumerate() {
+                    let idx = *idx as usize;
                     scores[i] = dot_sse(&query, &list[idx * vector_dim..(idx + 1) * vector_dim]);
                 }
             }

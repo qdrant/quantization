@@ -80,16 +80,17 @@ fn main() {
         let encoded = data.encode_data(dataset.2);
 
         let permutor = permutation_iterator::Permutor::new(data.vectors_count as u64);
-        let random_indices: Vec<usize> = permutor.map(|i| i as usize).collect();
-        let linear_indices: Vec<usize> = (0..data.vectors_count).collect();
+        let random_indices: Vec<u32> = permutor.map(|i| i as u32).collect();
+        let linear_indices: Vec<u32> = (0..data.vectors_count as u32).collect();
 
         #[cfg(target_arch = "x86_64")]
         {
             println!("Measure AVX2 linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &linear_indices {
-                    scores[index] =
-                        unsafe { dot_avx(query, data.vectors.row(index).as_slice().unwrap()) };
+                    scores[index as usize] = unsafe {
+                        dot_avx(query, data.vectors.row(index as usize).as_slice().unwrap())
+                    };
                 }
             });
         }
@@ -100,7 +101,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 let query_u8 = encoded.encode_query(query);
                 for &index in &linear_indices {
-                    scores[index] = encoded.score_point_avx(&query_u8, index);
+                    scores[index as usize] = encoded.score_point_avx(&query_u8, index);
                 }
             });
         }
@@ -119,8 +120,9 @@ fn main() {
             println!("Measure SSE linear access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &linear_indices {
-                    scores[index] =
-                        unsafe { dot_sse(query, data.vectors.row(index).as_slice().unwrap()) };
+                    scores[index as usize] = unsafe {
+                        dot_sse(query, data.vectors.row(index as usize).as_slice().unwrap())
+                    };
                 }
             });
         }
@@ -131,7 +133,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 let query_u8 = encoded.encode_query(query);
                 for &index in &linear_indices {
-                    scores[index] = encoded.score_point_sse(&query_u8, index);
+                    scores[index as usize] = encoded.score_point_sse(&query_u8, index);
                 }
             });
         }
@@ -184,8 +186,9 @@ fn main() {
             println!("Measure AVX2 random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &random_indices {
-                    scores[index] =
-                        unsafe { dot_avx(query, data.vectors.row(index).as_slice().unwrap()) };
+                    scores[index as usize] = unsafe {
+                        dot_avx(query, data.vectors.row(index as usize).as_slice().unwrap())
+                    };
                 }
             });
         }
@@ -196,7 +199,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 let query_u8 = encoded.encode_query(query);
                 for &index in &random_indices {
-                    scores[index] = encoded.score_point_avx(&query_u8, index);
+                    scores[index as usize] = encoded.score_point_avx(&query_u8, index);
                 }
             });
         }
@@ -215,8 +218,9 @@ fn main() {
             println!("Measure SSE random access");
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 for &index in &random_indices {
-                    scores[index] =
-                        unsafe { dot_sse(query, data.vectors.row(index).as_slice().unwrap()) };
+                    scores[index as usize] = unsafe {
+                        dot_sse(query, data.vectors.row(index as usize).as_slice().unwrap())
+                    };
                 }
             });
         }
@@ -227,7 +231,7 @@ fn main() {
             data.measure_scoring(data.queries_count / 10, |query, scores| {
                 let query_u8 = encoded.encode_query(query);
                 for &index in &random_indices {
-                    scores[index] = encoded.score_point_sse(&query_u8, index);
+                    scores[index as usize] = encoded.score_point_sse(&query_u8, index);
                 }
             });
         }

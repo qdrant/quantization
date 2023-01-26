@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
 
 pub const ALIGHMENT: usize = 16;
 pub const FILE_HEADER_MAGIC_NUMBER: u64 = 0x00_DD_91_12_FA_BB_09_01;
@@ -180,7 +180,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         }
     }
 
-    pub fn score_point(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point(&self, query: &EncodedQuery, i: u32) -> f32 {
         let q_ptr = query.encoded_query.as_ptr() as *const u8;
         let (vector_offset, v_ptr) = self.get_vec_ptr(i);
 
@@ -211,7 +211,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         self.score_point_simple(query, i)
     }
 
-    pub fn score_points(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
+    pub fn score_points(&self, query: &EncodedQuery, i: &[u32], scores: &mut [f32]) {
         #[cfg(target_arch = "x86_64")]
         {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
@@ -236,7 +236,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         self.score_points_simple(query, i, scores)
     }
 
-    pub fn score_internal(&self, i: usize, j: usize) -> f32 {
+    pub fn score_internal(&self, i: u32, j: u32) -> f32 {
         let (query_offset, q_ptr) = self.get_vec_ptr(i);
         let (vector_offset, v_ptr) = self.get_vec_ptr(j);
         let diff = self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
@@ -276,7 +276,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         }
     }
 
-    pub fn score_point_simple(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point_simple(&self, query: &EncodedQuery, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let mut mul = 0i32;
@@ -287,14 +287,14 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         }
     }
 
-    pub fn score_points_simple(&self, query: &EncodedQuery, i: &[usize], scores: &mut [f32]) {
+    pub fn score_points_simple(&self, query: &EncodedQuery, i: &[u32], scores: &mut [f32]) {
         for (i, score) in i.iter().zip(scores.iter_mut()) {
             *score = self.score_point_simple(query, *i);
         }
     }
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    pub fn score_point_neon(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point_neon(&self, query: &EncodedQuery, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_neon(
@@ -307,7 +307,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    pub fn score_points_neon(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
+    pub fn score_points_neon(&self, query: &EncodedQuery, indexes: &[u32], scores: &mut [f32]) {
         unsafe {
             for (indexes, scores) in indexes.chunks_exact(2).zip(scores.chunks_exact_mut(2)) {
                 let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
@@ -330,7 +330,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub fn score_point_sse(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point_sse(&self, query: &EncodedQuery, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_sse(
@@ -343,7 +343,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub fn score_points_sse(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
+    pub fn score_points_sse(&self, query: &EncodedQuery, indexes: &[u32], scores: &mut [f32]) {
         unsafe {
             for (indexes, scores) in indexes.chunks_exact(2).zip(scores.chunks_exact_mut(2)) {
                 let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
@@ -366,7 +366,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn score_point_avx(&self, query: &EncodedQuery, i: usize) -> f32 {
+    pub fn score_point_avx(&self, query: &EncodedQuery, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_avx(
@@ -379,7 +379,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn score_points_avx(&self, query: &EncodedQuery, indexes: &[usize], scores: &mut [f32]) {
+    pub fn score_points_avx(&self, query: &EncodedQuery, indexes: &[u32], scores: &mut [f32]) {
         unsafe {
             for (indexes, scores) in indexes.chunks_exact(2).zip(scores.chunks_exact_mut(2)) {
                 let (vector1_offset, v1_ptr) = self.get_vec_ptr(indexes[0]);
@@ -431,10 +431,13 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     }
 
     #[inline]
-    fn get_vec_ptr(&self, i: usize) -> (f32, *const u8) {
+    fn get_vec_ptr(&self, i: u32) -> (f32, *const u8) {
         unsafe {
             let vector_data_size = self.metadata.dim + std::mem::size_of::<f32>();
-            let v_ptr = self.encoded_vectors.ptr().add(i * vector_data_size);
+            let v_ptr = self
+                .encoded_vectors
+                .ptr()
+                .add(i as usize * vector_data_size);
             let vector_offset = *(v_ptr as *const f32);
             (vector_offset, v_ptr.add(std::mem::size_of::<f32>()))
         }
