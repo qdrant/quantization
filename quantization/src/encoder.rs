@@ -1,9 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
-
-use atomicwrites::AtomicFile;
-use atomicwrites::OverwriteBehavior::AllowOverwrite;
 use serde::{Deserialize, Serialize};
 
 pub const ALIGHMENT: usize = 16;
@@ -53,12 +50,14 @@ struct Metadata {
 
 impl<TStorage: Storage> EncodedVectors<TStorage> {
     pub fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()> {
+        let metadata_bytes = serde_json::to_vec(&self.metadata)?;
+        meta_path.parent().map(|p| std::fs::create_dir_all(p));
+        let mut buffer = File::create(meta_path)?;
+        buffer.write(metadata_bytes.as_slice())?;
+
+        data_path.parent().map(|p| std::fs::create_dir_all(p));
         let mut buffer = File::create(data_path)?;
         buffer.write_all(self.encoded_vectors.as_slice())?;
-
-        let af = AtomicFile::new(meta_path, AllowOverwrite);
-        let state_bytes = serde_json::to_vec(&self.metadata)?;
-        af.write(|f| f.write_all(&state_bytes))?;
         Ok(())
     }
 
