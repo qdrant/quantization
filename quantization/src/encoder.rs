@@ -401,6 +401,73 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         }
     }
 
+    pub fn score_pair(&self, query: &EncodedQuery, i1: u32, i2: u32) -> [f32; 2] {
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(i1);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(i2);
+                let mut scores = [0.0, 0.0];
+                impl_score_pair_dot_avx(
+                    query.encoded_query.as_ptr() as *const u8,
+                    v1_ptr,
+                    v2_ptr,
+                    self.metadata.dim as u32,
+                    scores.as_mut_ptr(),
+                );
+                return [
+                    self.metadata.multiplier * scores[0] + query.offset + vector1_offset,
+                    self.metadata.multiplier * scores[1] + query.offset + vector2_offset,
+                ];
+            }
+        }
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        unsafe {
+            if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(i1);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(i2);
+                let mut scores = [0.0, 0.0];
+                impl_score_pair_dot_sse(
+                    query.encoded_query.as_ptr() as *const u8,
+                    v1_ptr,
+                    v2_ptr,
+                    self.metadata.dim as u32,
+                    scores.as_mut_ptr(),
+                );
+                return [
+                    self.metadata.multiplier * scores[0] + query.offset + vector1_offset,
+                    self.metadata.multiplier * scores[1] + query.offset + vector2_offset,
+                ];
+            }
+        }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        unsafe {
+            if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+                let (vector1_offset, v1_ptr) = self.get_vec_ptr(i1);
+                let (vector2_offset, v2_ptr) = self.get_vec_ptr(i2);
+                let mut scores = [0.0, 0.0];
+                impl_score_pair_dot_neon(
+                    query.encoded_query.as_ptr() as *const u8,
+                    v1_ptr,
+                    v2_ptr,
+                    self.metadata.dim as u32,
+                    scores.as_mut_ptr(),
+                );
+                return [
+                    self.metadata.multiplier * scores[0] + query.offset + vector1_offset,
+                    self.metadata.multiplier * scores[1] + query.offset + vector2_offset,
+                ];
+            }
+        }
+
+        [
+            self.score_point_simple(query, i1),
+            self.score_point_simple(query, i2),
+        ]
+    }
+
     fn find_alpha_offset_size_dim<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]>,
     ) -> (f32, f32, usize, usize) {
