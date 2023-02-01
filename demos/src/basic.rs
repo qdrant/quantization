@@ -1,4 +1,4 @@
-use quantization::encoder::{EncodedVectors, SimilarityType};
+use quantization::encoder::{EncodedVectors, EncodingParameters, SimilarityType};
 use rand::{Rng, SeedableRng};
 
 use quantization::utils::dot_similarity;
@@ -19,8 +19,10 @@ fn main() {
     let encoded = EncodedVectors::encode(
         vector_data.iter().map(|v| v.as_slice()),
         Vec::<u8>::new(),
-        SimilarityType::Dot,
-        false,
+        EncodingParameters {
+            distance_type: SimilarityType::Dot,
+            ..Default::default()
+        },
     )
     .unwrap();
     let query_u8 = encoded.encode_query(&query);

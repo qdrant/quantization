@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::encoder::{EncodedVectors, SimilarityType};
+use quantization::encoder::{EncodedVectors, EncodingParameters, SimilarityType};
 #[cfg(target_arch = "x86_64")]
 use quantization::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]
@@ -24,8 +24,10 @@ fn encode_bench(c: &mut Criterion) {
             .into_iter()
             .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         Vec::<u8>::new(),
-        SimilarityType::Dot,
-        false,
+        EncodingParameters {
+            distance_type: SimilarityType::Dot,
+            ..Default::default()
+        },
     )
     .unwrap();
 

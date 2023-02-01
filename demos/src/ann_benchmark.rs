@@ -77,7 +77,7 @@ fn main() {
             data.cosine_preprocess();
         }
 
-        let encoded = data.encode_data(dataset.2);
+        let encoded = data.encode_data(dataset.2, None);
 
         let permutor = permutation_iterator::Permutor::new(data.vectors_count as u64);
         let random_indices: Vec<u32> = permutor.map(|i| i as u32).collect();

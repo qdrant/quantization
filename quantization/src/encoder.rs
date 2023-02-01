@@ -1,3 +1,4 @@
+use permutation_iterator::Permutor;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
@@ -5,11 +6,20 @@ use std::path::Path;
 
 pub const ALIGHMENT: usize = 16;
 pub const FILE_HEADER_MAGIC_NUMBER: u64 = 0x00_DD_91_12_FA_BB_09_01;
+pub const CONFIDENCE_LEVEL_SAMPLE_SIZE: usize = 100_000;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SimilarityType {
-    L2,
+    #[default]
     Dot,
+    L2,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct EncodingParameters {
+    pub distance_type: SimilarityType,
+    pub invert: bool,
+    pub confidence_level: Option<f32>,
 }
 
 pub trait Storage {
@@ -44,8 +54,7 @@ struct Metadata {
     alpha: f32,
     offset: f32,
     multiplier: f32,
-    distance_type: SimilarityType,
-    invert: bool,
+    encoding_parameters: EncodingParameters,
 }
 
 impl<TStorage: Storage> EncodedVectors<TStorage> {
@@ -77,10 +86,22 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     pub fn encode<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl StorageBuilder<TStorage>,
-        distance_type: SimilarityType,
-        invert: bool,
+        encoding_parameters: EncodingParameters,
     ) -> Result<Self, String> {
-        let (alpha, offset, _, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
+        let (alpha, offset, count, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
+        let (alpha, offset) = if let Some(confidence_level) = encoding_parameters.confidence_level {
+            Self::find_confidence_interval(
+                orig_data.clone(),
+                dim,
+                count,
+                confidence_level,
+                alpha,
+                offset,
+            )
+        } else {
+            (alpha, offset)
+        };
+
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
         for vector in orig_data {
             let mut encoded_vector = Vec::new();
@@ -90,7 +111,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             }
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                    let placeholder = match distance_type {
+                    let placeholder = match encoding_parameters.distance_type {
                         SimilarityType::Dot => 0.0,
                         SimilarityType::L2 => offset,
                     };
@@ -98,7 +119,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     encoded_vector.push(endoded);
                 }
             }
-            let vector_offset = match distance_type {
+            let vector_offset = match encoding_parameters.distance_type {
                 SimilarityType::Dot => {
                     extended_dim as f32 * offset * offset
                         + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset
@@ -113,7 +134,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                             * alpha
                 }
             };
-            let vector_offset = if invert {
+            let vector_offset = if encoding_parameters.invert {
                 -vector_offset
             } else {
                 vector_offset
@@ -121,11 +142,15 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             storage_builder.extend_from_slice(&vector_offset.to_ne_bytes());
             storage_builder.extend_from_slice(&encoded_vector);
         }
-        let multiplier = match distance_type {
+        let multiplier = match encoding_parameters.distance_type {
             SimilarityType::Dot => alpha * alpha,
             SimilarityType::L2 => -2.0 * alpha * alpha,
         };
-        let multiplier = if invert { -multiplier } else { multiplier };
+        let multiplier = if encoding_parameters.invert {
+            -multiplier
+        } else {
+            multiplier
+        };
 
         Ok(EncodedVectors {
             encoded_vectors: storage_builder.build(),
@@ -133,9 +158,8 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                 dim: extended_dim,
                 alpha,
                 offset,
-                distance_type,
                 multiplier,
-                invert,
+                encoding_parameters,
             },
         })
     }
@@ -148,7 +172,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             .collect();
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
-                let placeholder = match self.metadata.distance_type {
+                let placeholder = match self.metadata.encoding_parameters.distance_type {
                     SimilarityType::Dot => 0.0,
                     SimilarityType::L2 => self.metadata.offset,
                 };
@@ -157,7 +181,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                 query.push(endoded);
             }
         }
-        let offset = match self.metadata.distance_type {
+        let offset = match self.metadata.encoding_parameters.distance_type {
             SimilarityType::Dot => {
                 query.iter().map(|&x| x as f32).sum::<f32>()
                     * self.metadata.alpha
@@ -169,7 +193,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     * self.metadata.alpha
             }
         };
-        let offset = if self.metadata.invert {
+        let offset = if self.metadata.encoding_parameters.invert {
             -offset
         } else {
             offset
@@ -240,7 +264,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         let (query_offset, q_ptr) = self.get_vec_ptr(i);
         let (vector_offset, v_ptr) = self.get_vec_ptr(j);
         let diff = self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
-        let diff = if self.metadata.invert { -diff } else { diff };
+        let diff = if self.metadata.encoding_parameters.invert {
+            -diff
+        } else {
+            diff
+        };
         let offset = query_offset + vector_offset - diff;
 
         #[cfg(target_arch = "x86_64")]
@@ -487,9 +515,67 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                 }
             }
         }
+        let (alpha, offset) = Self::alpha_offset_from_min_max(min, max);
+        (alpha, offset, count, dim)
+    }
+
+    fn find_confidence_interval<'a>(
+        orig_data: impl IntoIterator<Item = &'a [f32]>,
+        dim: usize,
+        count: usize,
+        confidence_level: f32,
+        alpha: f32,
+        offset: f32,
+    ) -> (f32, f32) {
+        let slice_size = std::cmp::min(count, CONFIDENCE_LEVEL_SAMPLE_SIZE);
+        let permutor = Permutor::new(count as u64);
+        let mut selected_vectors: Vec<usize> =
+            permutor.map(|i| i as usize).take(slice_size).collect();
+        selected_vectors.sort_unstable();
+
+        let mut data_slice = Vec::with_capacity(slice_size * dim);
+        let mut vector_index: usize = 0;
+        let mut selected_index: usize = 0;
+        for vector in orig_data {
+            if vector_index == selected_vectors[selected_index] {
+                data_slice.extend_from_slice(vector);
+                selected_index += 1;
+                if selected_index == slice_size {
+                    break;
+                }
+            }
+            vector_index += 1;
+        }
+
+        let cut_index = (slice_size as f32 * (1.0 - confidence_level) / 2.0) as usize;
+        let comparator = |a: &f32, b: &f32| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal);
+        let data_slice_len = data_slice.len();
+        let (selected_values, _, _) =
+            data_slice.select_nth_unstable_by(data_slice_len - cut_index, comparator);
+        let (_, _, selected_values) = selected_values.select_nth_unstable_by(cut_index, comparator);
+
+        if selected_values.len() < 2 {
+            return (alpha, offset);
+        }
+
+        let mut min = f32::MAX;
+        let mut max = f32::MIN;
+        for value in selected_values {
+            if *value < min {
+                min = *value;
+            }
+            if *value > max {
+                max = *value;
+            }
+        }
+
+        Self::alpha_offset_from_min_max(min, max)
+    }
+
+    fn alpha_offset_from_min_max(min: f32, max: f32) -> (f32, f32) {
         let alpha = (max - min) / 127.0;
         let offset = min;
-        (alpha, offset, count, dim)
+        (alpha, offset)
     }
 
     fn f32_to_u8(i: f32, alpha: f32, offset: f32) -> u8 {

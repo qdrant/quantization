@@ -1,7 +1,7 @@
 use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::encoder::{EncodedVectors, SimilarityType};
+use quantization::encoder::{EncodedVectors, EncodingParameters, SimilarityType};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -90,7 +90,11 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(&self, distance_type: SimilarityType) -> EncodedVectors<Vec<u8>> {
+    pub fn encode_data(
+        &self,
+        distance_type: SimilarityType,
+        confidence_level: Option<f32>,
+    ) -> EncodedVectors<Vec<u8>> {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
         let encoded_data = EncodedVectors::encode(
@@ -99,8 +103,11 @@ impl AnnBenchmarkData {
                 .into_iter()
                 .map(|row| row.to_slice().unwrap()),
             Vec::<u8>::new(),
-            distance_type,
-            false,
+            EncodingParameters {
+                distance_type,
+                confidence_level,
+                ..Default::default()
+            },
         )
         .unwrap();
         println!("encoding time: {:?}", timer.elapsed());

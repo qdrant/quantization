@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use quantization::{
-        encoder::{EncodedVectors, SimilarityType},
+        encoder::{EncodedVectors, EncodingParameters, SimilarityType},
         utils::{dot_similarity, l2_similarity},
     };
     use rand::{Rng, SeedableRng};
@@ -24,8 +24,10 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::Dot,
-            false,
+            EncodingParameters {
+                distance_type: SimilarityType::Dot,
+                ..Default::default()
+            },
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -61,8 +63,10 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::L2,
-            false,
+            EncodingParameters {
+                distance_type: SimilarityType::L2,
+                ..Default::default()
+            },
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -98,8 +102,11 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::Dot,
-            true,
+            EncodingParameters {
+                distance_type: SimilarityType::Dot,
+                invert: true,
+                ..Default::default()
+            },
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -135,8 +142,11 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::L2,
-            true,
+            EncodingParameters {
+                distance_type: SimilarityType::L2,
+                invert: true,
+                ..Default::default()
+            },
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -171,8 +181,10 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::Dot,
-            false,
+            EncodingParameters {
+                distance_type: SimilarityType::Dot,
+                ..Default::default()
+            },
         )
         .unwrap();
 
@@ -200,8 +212,11 @@ mod tests {
         let encoded = EncodedVectors::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            SimilarityType::Dot,
-            true,
+            EncodingParameters {
+                distance_type: SimilarityType::Dot,
+                invert: true,
+                ..Default::default()
+            },
         )
         .unwrap();
 
