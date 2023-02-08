@@ -83,15 +83,6 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         Ok(result)
     }
 
-    pub fn estimate_encoded_storage_size(
-        dim: usize,
-        count: usize,
-        _encoding_parameters: &EncodingParameters,
-    ) -> usize {
-        let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
-        (extended_dim + std::mem::size_of::<f32>()) * count
-    }
-
     pub fn encode<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl StorageBuilder<TStorage>,
@@ -596,6 +587,13 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let vector_offset = *(v_ptr as *const f32);
             (vector_offset, v_ptr.add(std::mem::size_of::<f32>()))
         }
+    }
+}
+
+impl EncodingParameters {
+    pub fn estimate_encoded_storage_size(&self, dim: usize, count: usize) -> usize {
+        let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
+        (extended_dim + std::mem::size_of::<f32>()) * count
     }
 }
 
