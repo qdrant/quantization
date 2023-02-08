@@ -25,11 +25,11 @@ pub struct EncodingParameters {
 pub trait Storage {
     fn ptr(&self) -> *const u8;
 
-    fn as_slice(&self) -> &[u8];
-
     fn from_file(path: &Path) -> std::io::Result<Self>
     where
         Self: Sized;
+
+    fn save_to_file(&self, path: &Path) -> std::io::Result<()>;
 }
 
 pub trait StorageBuilder<TStorage: Storage> {
@@ -65,8 +65,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         buffer.write(metadata_bytes.as_slice())?;
 
         data_path.parent().map(|p| std::fs::create_dir_all(p));
-        let mut buffer = File::create(data_path)?;
-        buffer.write_all(self.encoded_vectors.as_slice())?;
+        self.encoded_vectors.save_to_file(data_path)?;
         Ok(())
     }
 
@@ -602,15 +601,18 @@ impl Storage for Vec<u8> {
         self.as_ptr()
     }
 
-    fn as_slice(&self) -> &[u8] {
-        self.as_slice()
-    }
-
     fn from_file(path: &Path) -> std::io::Result<Self> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
         Ok(buffer)
+    }
+
+    fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
+        let mut buffer = File::create(path)?;
+        buffer.write_all(self.as_slice())?;
+        buffer.flush()?;
+        Ok(())
     }
 }
 
