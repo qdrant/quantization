@@ -93,7 +93,7 @@ impl AnnBenchmarkData {
     pub fn encode_data(
         &self,
         distance_type: SimilarityType,
-        confidence_level: Option<f32>,
+        quantile: Option<f32>,
     ) -> EncodedVectors<Vec<u8>> {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
@@ -105,7 +105,7 @@ impl AnnBenchmarkData {
             Vec::<u8>::new(),
             EncodingParameters {
                 distance_type,
-                confidence_level,
+                quantile,
                 ..Default::default()
             },
         )
