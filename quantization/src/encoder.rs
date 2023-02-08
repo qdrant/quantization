@@ -35,8 +35,6 @@ pub trait Storage {
 pub trait StorageBuilder<TStorage: Storage> {
     fn build(self) -> TStorage;
 
-    fn set_size(&mut self, size: usize);
-
     fn extend_from_slice(&mut self, other: &[u8]);
 }
 
@@ -85,6 +83,15 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         Ok(result)
     }
 
+    pub fn estimate_encoded_storage_size(
+        dim: usize,
+        count: usize,
+        _encoding_parameters: &EncodingParameters,
+    ) -> usize {
+        let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
+        (extended_dim + std::mem::size_of::<f32>()) * count
+    }
+
     pub fn encode<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl StorageBuilder<TStorage>,
@@ -92,21 +99,12 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     ) -> Result<Self, String> {
         let (alpha, offset, count, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let (alpha, offset) = if let Some(quantile) = encoding_parameters.quantile {
-            Self::find_quantile_interval(
-                orig_data.clone(),
-                dim,
-                count,
-                quantile,
-                alpha,
-                offset,
-            )
+            Self::find_quantile_interval(orig_data.clone(), dim, count, quantile, alpha, offset)
         } else {
             (alpha, offset)
         };
 
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
-        storage_builder.set_size((extended_dim + std::mem::size_of::<f32>()) * count);
-
         for vector in orig_data {
             let mut encoded_vector = Vec::new();
             for &value in vector {
@@ -621,10 +619,6 @@ impl Storage for Vec<u8> {
 impl StorageBuilder<Vec<u8>> for Vec<u8> {
     fn build(self) -> Vec<u8> {
         self
-    }
-
-    fn set_size(&mut self, size: usize) {
-        self.reserve(size);
     }
 
     fn extend_from_slice(&mut self, other: &[u8]) {
