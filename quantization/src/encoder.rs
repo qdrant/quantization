@@ -35,7 +35,7 @@ pub trait Storage {
 pub trait StorageBuilder<TStorage: Storage> {
     fn build(self) -> TStorage;
 
-    fn extend_from_slice(&mut self, other: &[u8]);
+    fn push_vector_data(&mut self, other: &[u8]);
 }
 
 pub struct EncodedVectors<TStorage: Storage> {
@@ -96,7 +96,8 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 
         let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
         for vector in orig_data {
-            let mut encoded_vector = Vec::new();
+            let mut encoded_vector = Vec::with_capacity(extended_dim + std::mem::size_of::<f32>());
+            encoded_vector.extend_from_slice(&f32::default().to_ne_bytes());
             for &value in vector {
                 let endoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(endoded);
@@ -131,8 +132,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             } else {
                 vector_offset
             };
-            storage_builder.extend_from_slice(&vector_offset.to_ne_bytes());
-            storage_builder.extend_from_slice(&encoded_vector);
+            encoded_vector[0..std::mem::size_of::<f32>()]
+                .copy_from_slice(&vector_offset.to_ne_bytes());
+            storage_builder.push_vector_data(&encoded_vector);
         }
         let multiplier = match encoding_parameters.distance_type {
             SimilarityType::Dot => alpha * alpha,
@@ -621,7 +623,7 @@ impl StorageBuilder<Vec<u8>> for Vec<u8> {
         self
     }
 
-    fn extend_from_slice(&mut self, other: &[u8]) {
+    fn push_vector_data(&mut self, other: &[u8]) {
         self.extend_from_slice(other);
     }
 }
