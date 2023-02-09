@@ -23,7 +23,7 @@ pub struct EncodingParameters {
 }
 
 pub trait Storage {
-    fn ptr(&self) -> *const u8;
+    fn get_vector_data(&self, index: usize, vector_size: usize) -> &[u8];
 
     fn from_file(path: &Path) -> std::io::Result<Self>
     where
@@ -581,8 +581,8 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let vector_data_size = self.metadata.dim + std::mem::size_of::<f32>();
             let v_ptr = self
                 .encoded_vectors
-                .ptr()
-                .add(i as usize * vector_data_size);
+                .get_vector_data(i as usize, vector_data_size)
+                .as_ptr();
             let vector_offset = *(v_ptr as *const f32);
             (vector_offset, v_ptr.add(std::mem::size_of::<f32>()))
         }
@@ -597,8 +597,8 @@ impl EncodingParameters {
 }
 
 impl Storage for Vec<u8> {
-    fn ptr(&self) -> *const u8 {
-        self.as_ptr()
+    fn get_vector_data(&self, index: usize, vector_size: usize) -> &[u8] {
+        &self[vector_size * index..vector_size * (index + 1)]
     }
 
     fn from_file(path: &Path) -> std::io::Result<Self> {
