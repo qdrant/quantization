@@ -1,6 +1,6 @@
 #include <arm_neon.h>
 
-#define EXPORT __attribute__((visibility("default")))
+#include "export_macro.h"
 
 EXPORT float impl_score_dot_neon(
     const uint8_t* query_ptr,

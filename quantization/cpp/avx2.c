@@ -10,7 +10,7 @@
 #include <wmmintrin.h> // AES
 #include <immintrin.h> // AVX, AVX2, FMA
 
-#define EXPORT __attribute__((visibility("default")))
+#include "export_macro.h"
 
 #define HSUM256_PS(X, R) \
     float R = 0.0f; \
