@@ -25,8 +25,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::Dot,
-                ..Default::default()
+                invert: false,
+                quantile: None,
             },
         )
         .unwrap();
@@ -64,8 +66,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::L2,
-                ..Default::default()
+                invert: false,
+                quantile: None,
             },
         )
         .unwrap();
@@ -103,9 +107,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::Dot,
                 invert: true,
-                ..Default::default()
+                quantile: None,
             },
         )
         .unwrap();
@@ -143,9 +148,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::L2,
                 invert: true,
-                ..Default::default()
+                quantile: None,
             },
         )
         .unwrap();
@@ -182,8 +188,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::Dot,
-                ..Default::default()
+                invert: false,
+                quantile: None,
             },
         )
         .unwrap();
@@ -213,9 +221,10 @@ mod tests {
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: vector_dim,
                 distance_type: SimilarityType::Dot,
                 invert: true,
-                ..Default::default()
+                quantile: None,
             },
         )
         .unwrap();

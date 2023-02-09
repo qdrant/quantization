@@ -8,15 +8,15 @@ pub const ALIGHMENT: usize = 16;
 pub const FILE_HEADER_MAGIC_NUMBER: u64 = 0x00_DD_91_12_FA_BB_09_01;
 pub const QUANTILE_SAMPLE_SIZE: usize = 100_000;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SimilarityType {
-    #[default]
     Dot,
     L2,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 pub struct EncodingParameters {
+    pub dim: usize,
     pub distance_type: SimilarityType,
     pub invert: bool,
     pub quantile: Option<f32>,
@@ -25,7 +25,7 @@ pub struct EncodingParameters {
 pub trait Storage {
     fn get_vector_data(&self, index: usize, vector_size: usize) -> &[u8];
 
-    fn from_file(path: &Path) -> std::io::Result<Self>
+    fn from_file(path: &Path, encoding_parameters: &EncodingParameters) -> std::io::Result<Self>
     where
         Self: Sized;
 
@@ -50,7 +50,7 @@ pub struct EncodedQuery {
 
 #[derive(Serialize, Deserialize)]
 struct Metadata {
-    dim: usize,
+    actual_dim: usize,
     alpha: f32,
     offset: f32,
     multiplier: f32,
@@ -69,12 +69,16 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         Ok(())
     }
 
-    pub fn load(data_path: &Path, meta_path: &Path) -> std::io::Result<Self> {
+    pub fn load(
+        data_path: &Path,
+        meta_path: &Path,
+        encoding_parameters: &EncodingParameters,
+    ) -> std::io::Result<Self> {
         let mut contents = String::new();
         let mut file = File::open(meta_path)?;
         file.read_to_string(&mut contents)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
-        let encoded_vectors = TStorage::from_file(data_path)?;
+        let encoded_vectors = TStorage::from_file(data_path, encoding_parameters)?;
         let result = Self {
             metadata,
             encoded_vectors,
@@ -94,9 +98,9 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             (alpha, offset)
         };
 
-        let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
+        let actual_dim = encoding_parameters.get_actual_dim();
         for vector in orig_data {
-            let mut encoded_vector = Vec::with_capacity(extended_dim + std::mem::size_of::<f32>());
+            let mut encoded_vector = Vec::with_capacity(actual_dim + std::mem::size_of::<f32>());
             encoded_vector.extend_from_slice(&f32::default().to_ne_bytes());
             for &value in vector {
                 let endoded = Self::f32_to_u8(value, alpha, offset);
@@ -114,11 +118,11 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             }
             let vector_offset = match encoding_parameters.distance_type {
                 SimilarityType::Dot => {
-                    extended_dim as f32 * offset * offset
+                    actual_dim as f32 * offset * offset
                         + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset
                 }
                 SimilarityType::L2 => {
-                    extended_dim as f32 * offset * offset
+                    actual_dim as f32 * offset * offset
                         + encoded_vector
                             .iter()
                             .map(|&x| x as f32 * x as f32)
@@ -149,7 +153,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         Ok(EncodedVectors {
             encoded_vectors: storage_builder.build(),
             metadata: Metadata {
-                dim: extended_dim,
+                actual_dim,
                 alpha,
                 offset,
                 multiplier,
@@ -205,7 +209,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.dim as u32);
+                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
@@ -213,7 +217,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
             if is_x86_feature_detected!("sse") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.dim as u32);
+                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
@@ -257,7 +261,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     pub fn score_internal(&self, i: u32, j: u32) -> f32 {
         let (query_offset, q_ptr) = self.get_vec_ptr(i);
         let (vector_offset, v_ptr) = self.get_vec_ptr(j);
-        let diff = self.metadata.dim as f32 * self.metadata.offset * self.metadata.offset;
+        let diff = self.metadata.actual_dim as f32 * self.metadata.offset * self.metadata.offset;
         let diff = if self.metadata.encoding_parameters.invert {
             -diff
         } else {
@@ -268,7 +272,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(target_arch = "x86_64")]
         unsafe {
             if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.dim as u32);
+                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
         }
@@ -276,7 +280,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
             if is_x86_feature_detected!("sse") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.dim as u32);
+                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
         }
@@ -291,7 +295,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 
         unsafe {
             let mut mul = 0i32;
-            for i in 0..self.metadata.dim {
+            for i in 0..self.metadata.actual_dim {
                 mul += (*q_ptr.add(i)) as i32 * (*v_ptr.add(i)) as i32;
             }
             self.metadata.multiplier * mul as f32 + offset
@@ -302,7 +306,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let mut mul = 0i32;
-            for i in 0..self.metadata.dim {
+            for i in 0..self.metadata.actual_dim {
                 mul += query.encoded_query[i] as i32 * (*v_ptr.add(i)) as i32;
             }
             self.metadata.multiplier * mul as f32 + query.offset + vector_offset
@@ -358,7 +362,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let score = impl_score_dot_sse(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
-                self.metadata.dim as u32,
+                self.metadata.actual_dim as u32,
             );
             self.metadata.multiplier * score + query.offset + vector_offset
         }
@@ -374,7 +378,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.metadata.dim as u32,
+                    self.metadata.actual_dim as u32,
                     scores.as_mut_ptr(),
                 );
                 scores[0] = self.metadata.multiplier * scores[0] + query.offset + vector1_offset;
@@ -394,7 +398,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
             let score = impl_score_dot_avx(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
-                self.metadata.dim as u32,
+                self.metadata.actual_dim as u32,
             );
             self.metadata.multiplier * score + query.offset + vector_offset
         }
@@ -410,7 +414,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.metadata.dim as u32,
+                    self.metadata.actual_dim as u32,
                     scores.as_mut_ptr(),
                 );
                 scores[0] = self.metadata.multiplier * scores[0] + query.offset + vector1_offset;
@@ -434,7 +438,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.metadata.dim as u32,
+                    self.metadata.actual_dim as u32,
                     scores.as_mut_ptr(),
                 );
                 return [
@@ -454,7 +458,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
                     query.encoded_query.as_ptr() as *const u8,
                     v1_ptr,
                     v2_ptr,
-                    self.metadata.dim as u32,
+                    self.metadata.actual_dim as u32,
                     scores.as_mut_ptr(),
                 );
                 return [
@@ -580,7 +584,7 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
     #[inline]
     fn get_vec_ptr(&self, i: u32) -> (f32, *const u8) {
         unsafe {
-            let vector_data_size = self.metadata.dim + std::mem::size_of::<f32>();
+            let vector_data_size = self.metadata.actual_dim + std::mem::size_of::<f32>();
             let v_ptr = self
                 .encoded_vectors
                 .get_vector_data(i as usize, vector_data_size)
@@ -592,9 +596,13 @@ impl<TStorage: Storage> EncodedVectors<TStorage> {
 }
 
 impl EncodingParameters {
-    pub fn estimate_encoded_storage_size(&self, dim: usize, count: usize) -> usize {
-        let extended_dim = dim + (ALIGHMENT - dim % ALIGHMENT) % ALIGHMENT;
-        (extended_dim + std::mem::size_of::<f32>()) * count
+    pub fn get_vector_data_size(&self) -> usize {
+        let actual_dim = self.get_actual_dim();
+        actual_dim + std::mem::size_of::<f32>()
+    }
+
+    pub fn get_actual_dim(&self) -> usize {
+        self.dim + (ALIGHMENT - self.dim % ALIGHMENT) % ALIGHMENT
     }
 }
 
@@ -603,7 +611,7 @@ impl Storage for Vec<u8> {
         &self[vector_size * index..vector_size * (index + 1)]
     }
 
-    fn from_file(path: &Path) -> std::io::Result<Self> {
+    fn from_file(path: &Path, _encoding_parameters: &EncodingParameters) -> std::io::Result<Self> {
         let mut file = File::open(path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;

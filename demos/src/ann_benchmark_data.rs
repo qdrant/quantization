@@ -104,9 +104,10 @@ impl AnnBenchmarkData {
                 .map(|row| row.to_slice().unwrap()),
             Vec::<u8>::new(),
             EncodingParameters {
+                dim: self.dim,
                 distance_type,
                 quantile,
-                ..Default::default()
+                invert: false,
             },
         )
         .unwrap();
