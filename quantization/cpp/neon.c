@@ -21,36 +21,3 @@ EXPORT float impl_score_dot_neon(
     }
     return (float)vaddvq_u32(vaddq_u32(mul1, mul2));
 }
-
-EXPORT void impl_score_pair_dot_neon(
-    const uint8_t* query_ptr,
-    const uint8_t* vector1_ptr,
-    const uint8_t* vector2_ptr,
-    uint32_t dim,
-    float* result
-) {
-    uint32x4_t mul1 = vdupq_n_u32(0);
-    uint32x4_t mul2 = vdupq_n_u32(0);
-    for (uint32_t _i = 0; _i < dim / 16; _i++) {
-        uint8x16_t q = vld1q_u8(query_ptr);
-        uint8x16_t v1 = vld1q_u8(vector1_ptr);
-        uint8x16_t v2 = vld1q_u8(vector2_ptr);
-        query_ptr += 16;
-        vector1_ptr += 16;
-        vector2_ptr += 16;
-        uint8x8_t q_low = vget_low_u8(q);
-        uint8x8_t q_high = vget_high_u8(q);
-        uint16x8_t mul1_low = vmull_u8(q_low, vget_low_u8(v1));
-        uint16x8_t mul1_high = vmull_u8(q_high, vget_high_u8(v1));
-        uint16x8_t mul2_low = vmull_u8(q_low, vget_low_u8(v2));
-        uint16x8_t mul2_high = vmull_u8(q_high, vget_high_u8(v2));
-        mul1 = vpadalq_u16(mul1, mul1_low);
-        mul1 = vpadalq_u16(mul1, mul1_high);
-        mul2 = vpadalq_u16(mul2, mul2_low);
-        mul2 = vpadalq_u16(mul2, mul2_high);
-    }
-    float mul1_scalar = vaddvq_u32(mul1);
-    float mul2_scalar = vaddvq_u32(mul2);
-    result[0] = mul1_scalar;
-    result[1] = mul2_scalar;
-}

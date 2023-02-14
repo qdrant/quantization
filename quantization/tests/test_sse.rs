@@ -1,10 +1,11 @@
+#[allow(unused)]
+mod metrics;
+
 #[cfg(test)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod tests {
-    use quantization::{
-        encoder::{EncodedVectors, EncodingParameters, SimilarityType},
-        utils::{dot_similarity, l2_similarity},
-    };
+    use crate::metrics::{dot_similarity, l2_similarity};
+    use quantization::encoded_vectors::{EncodedVectors, EncodingParameters, SimilarityType};
     use rand::{Rng, SeedableRng};
 
     #[test]

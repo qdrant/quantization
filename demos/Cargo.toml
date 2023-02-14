@@ -26,3 +26,7 @@ path = "src/basic.rs"
 [[bin]]
 name = "ann_benchmark"
 path = "src/ann_benchmark.rs"
+
+[[bench]]
+name = "encode"
+harness = false

@@ -1,7 +1,10 @@
 use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::encoder::{EncodedVectors, EncodingParameters, SimilarityType};
+use quantization::{
+    encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters},
+    encoded_vectors_u8::EncodedVectorsU8,
+};
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -94,21 +97,21 @@ impl AnnBenchmarkData {
         &self,
         distance_type: SimilarityType,
         quantile: Option<f32>,
-    ) -> EncodedVectors<Vec<u8>> {
+    ) -> EncodedVectorsU8<Vec<u8>> {
         println!("Start encoding:");
         let timer = std::time::Instant::now();
-        let encoded_data = EncodedVectors::encode(
+        let encoded_data = EncodedVectorsU8::encode(
             self.vectors
                 .rows()
                 .into_iter()
                 .map(|row| row.to_slice().unwrap()),
             Vec::<u8>::new(),
-            EncodingParameters {
+            &VectorParameters {
                 dim: self.dim,
                 distance_type,
-                quantile,
                 invert: false,
             },
+            quantile,
         )
         .unwrap();
         println!("encoding time: {:?}", timer.elapsed());
@@ -147,7 +150,7 @@ impl AnnBenchmarkData {
         Self::print_timings(&mut timings);
     }
 
-    pub fn test_knn<F>(&self, encoded: &EncodedVectors<Vec<u8>>, postprocess: F)
+    pub fn test_knn<F>(&self, encoded: &EncodedVectorsU8<Vec<u8>>, postprocess: F)
     where
         F: Fn(f32) -> f32,
     {
