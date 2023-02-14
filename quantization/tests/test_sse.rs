@@ -5,7 +5,7 @@ mod metrics;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod tests {
     use crate::metrics::{dot_similarity, l2_similarity};
-    use quantization::encoded_vectors::{EncodedVectors, EncodingParameters, SimilarityType};
+    use quantization::{encoded_vectors_u8::EncodedVectorsU8, encoded_vectors::{VectorParameters, SimilarityType, EncodedVectors}};
     use rand::{Rng, SeedableRng};
 
     #[test]
@@ -23,29 +23,23 @@ mod tests {
         }
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
-        let encoded = EncodedVectors::encode(
+        let encoded = EncodedVectorsU8::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            EncodingParameters {
+            &VectorParameters {
                 dim: vector_dim,
                 distance_type: SimilarityType::Dot,
                 invert: false,
-                quantile: None,
             },
+            None,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
 
-        let indexes = (0..vectors_count as u32).collect::<Vec<_>>();
-        let mut scores = vec![0.0; vectors_count];
-        encoded.score_points_sse(&query_u8, &indexes, &mut scores);
-
         for i in 0..vectors_count {
             let score = encoded.score_point_sse(&query_u8, i as u32);
-            let score2 = scores[i];
             let orginal_score = dot_similarity(&query, &vector_data[i]);
             assert!((score - orginal_score).abs() < error);
-            assert!((score2 - orginal_score).abs() < error);
         }
     }
 
@@ -64,29 +58,23 @@ mod tests {
         }
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
-        let encoded = EncodedVectors::encode(
+        let encoded = EncodedVectorsU8::encode(
             vector_data.iter().map(|v| v.as_slice()),
             Vec::<u8>::new(),
-            EncodingParameters {
+            &VectorParameters {
                 dim: vector_dim,
                 distance_type: SimilarityType::L2,
                 invert: false,
-                quantile: None,
             },
+            None,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
 
-        let indexes = (0..vectors_count as u32).collect::<Vec<_>>();
-        let mut scores = vec![0.0; vectors_count];
-        encoded.score_points_sse(&query_u8, &indexes, &mut scores);
-
         for i in 0..vectors_count {
             let score = encoded.score_point_sse(&query_u8, i as u32);
-            let score2 = scores[i];
             let orginal_score = l2_similarity(&query, &vector_data[i]);
             assert!((score - orginal_score).abs() < error);
-            assert!((score2 - orginal_score).abs() < error);
         }
     }
 }

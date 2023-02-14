@@ -2,11 +2,13 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
 use quantization::encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters};
 use quantization::encoded_vectors_u8::EncodedVectorsU8;
-#[cfg(target_arch = "x86_64")]
-use quantization::utils_avx2::dot_avx;
-#[cfg(target_arch = "x86_64")]
-use quantization::utils_sse::dot_sse;
 use rand::Rng;
+
+#[cfg(target_arch = "x86_64")]
+use demos::metrics::utils_avx2::dot_avx;
+
+#[cfg(target_arch = "x86_64")]
+use demos::metrics::utils_sse::dot_sse;
 
 fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
@@ -175,26 +177,6 @@ fn encode_bench(c: &mut Criterion) {
                 for (i, idx) in window.iter().enumerate() {
                     scores[i] = i8_encoded.score_point_sse(&encoded_query, *idx);
                 }
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    group.bench_function("score random access blocks i8 sse blocked", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| {
-            for window in permutation.as_slice().chunks_exact(16) {
-                i8_encoded.score_points_sse(&encoded_query, window, &mut scores);
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    group.bench_function("score random access blocks i8 avx blocked", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| {
-            for window in permutation.as_slice().chunks_exact(16) {
-                i8_encoded.score_points_avx(&encoded_query, window, &mut scores);
             }
         });
     });

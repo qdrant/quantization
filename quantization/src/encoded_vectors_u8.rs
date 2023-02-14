@@ -140,7 +140,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    pub fn score_point_sse(&self, query: &EncodedQuery, i: u32) -> f32 {
+    pub fn score_point_sse(&self, query: &EncodedQueryU8, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_sse(
@@ -153,7 +153,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     }
 
     #[cfg(target_arch = "x86_64")]
-    pub fn score_point_avx(&self, query: &EncodedQuery, i: u32) -> f32 {
+    pub fn score_point_avx(&self, query: &EncodedQueryU8, i: u32) -> f32 {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_avx(
