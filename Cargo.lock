@@ -1142,7 +1142,6 @@ name = "quantization"
 version = "0.1.0"
 dependencies = [
  "cc",
- "criterion",
  "permutation_iterator",
  "rand 0.8.5",
  "serde",

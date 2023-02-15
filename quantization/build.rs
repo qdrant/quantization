@@ -3,6 +3,7 @@ fn main() {
 
     #[cfg(target_arch = "x86_64")]
     {
+        builder.file("cpp/sse.c");
         builder.file("cpp/avx2.c");
         if builder.get_compiler().is_like_msvc() {
             builder.flag("/arch:AVX");

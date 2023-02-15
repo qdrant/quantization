@@ -1,12 +1,9 @@
-pub mod encoder;
-pub mod utils;
+pub mod encoded_storage;
+pub mod encoded_vectors;
+pub mod encoded_vectors_u8;
+pub mod quantile;
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub mod utils_sse;
-
-#[cfg(target_arch = "x86_64")]
-pub mod utils_avx2;
-
-#[cfg(target_arch = "aarch64")]
-#[cfg(target_feature = "neon")]
-pub mod utils_neon;
+#[derive(Debug)]
+pub struct EncodingError {
+    pub description: String,
+}

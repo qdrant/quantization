@@ -1,0 +1,33 @@
+name: Formatter and linter
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install HDF5
+      run: sudo apt-get install libhdf5-dev
+    - name: Install minimal stable
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        components: rustfmt, clippy
+    - uses: actions/checkout@v3
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: clippy
+    - name: Check code formatting
+      run: cargo fmt --all -- --check
+    - name: Check cargo clippy warnings
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
