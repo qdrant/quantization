@@ -18,6 +18,8 @@ jobs:
         os: [ ubuntu-latest, windows-latest ]
 
     steps:
+    - name: Install hdf5 lib
+      run: apt install libhdf5-dev
     - name: Install minimal stable
       uses: actions-rs/toolchain@v1
       with:
