@@ -39,9 +39,9 @@ mod tests {
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
 
-        for i in 0..vectors_count {
-            let score = encoded.score_point_avx(&query_u8, i as u32);
-            let orginal_score = dot_similarity(&query, &vector_data[i]);
+        for (index, vector) in vector_data.iter().enumerate() {
+            let score = encoded.score_point_avx(&query_u8, index as u32);
+            let orginal_score = dot_similarity(&query, vector);
             assert!((score - orginal_score).abs() < error);
         }
     }
@@ -74,9 +74,9 @@ mod tests {
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
 
-        for i in 0..vectors_count {
-            let score = encoded.score_point_avx(&query_u8, i as u32);
-            let orginal_score = l2_similarity(&query, &vector_data[i]);
+        for (index, vector) in vector_data.iter().enumerate() {
+            let score = encoded.score_point_avx(&query_u8, index as u32);
+            let orginal_score = l2_similarity(&query, vector);
             assert!((score - orginal_score).abs() < error);
         }
     }

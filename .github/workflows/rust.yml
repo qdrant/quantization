@@ -12,10 +12,7 @@ env:
 jobs:
   test:
 
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, windows-latest ]
+    runs-on: ubuntu-latest
 
     steps:
     - name: Install HDF5

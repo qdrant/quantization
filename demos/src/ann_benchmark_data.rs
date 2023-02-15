@@ -37,7 +37,7 @@ impl std::cmp::Ord for Score {
 
 impl AnnBenchmarkData {
     pub fn new(filename: &str, url: &str) -> Self {
-        println!("Test {}", url);
+        println!("Test {url}");
         if !std::path::Path::new(filename).exists() {
             Self::download_file(filename, url);
         }
@@ -204,9 +204,9 @@ impl AnnBenchmarkData {
         same_20 /= self.queries_count as f32;
         same_30 /= self.queries_count as f32;
         println!("queries count: {}", self.queries_count);
-        println!("same_10: {}", same_10);
-        println!("same_20: {}", same_20);
-        println!("same_30: {}", same_30);
+        println!("same_10: {same_10}");
+        println!("same_20: {same_20}");
+        println!("same_30: {same_30}");
         Self::print_timings(&mut timings);
     }
 
@@ -217,11 +217,11 @@ impl AnnBenchmarkData {
             if !dir.is_dir() {
                 std::fs::create_dir_all(dir).unwrap();
             }
-            println!("Start downloading from {}", url);
+            println!("Start downloading from {url}");
             let mut resp = reqwest::blocking::get(url).unwrap();
             let mut file = std::fs::File::create(name).unwrap();
             std::io::copy(&mut resp, &mut file).unwrap();
-            println!("File {} created", name);
+            println!("File {name} created");
         }
     }
 
@@ -238,11 +238,11 @@ impl AnnBenchmarkData {
         let p95_time: f64 = timings[(timings.len() as f32 * 0.95) as usize];
         let p99_time: f64 = timings[(timings.len() as f32 * 0.99) as usize];
 
-        println!("Min search time: {}ms", min_time);
-        println!("Avg search time: {}ms", avg_time);
-        println!("p95 search time: {}ms", p95_time);
-        println!("p99 search time: {}ms", p99_time);
-        println!("Max search time: {}ms", max_time);
+        println!("Min search time: {min_time}ms");
+        println!("Avg search time: {avg_time}ms");
+        println!("p95 search time: {p95_time}ms");
+        println!("p99 search time: {p99_time}ms");
+        println!("Max search time: {max_time}ms");
     }
 }
 
