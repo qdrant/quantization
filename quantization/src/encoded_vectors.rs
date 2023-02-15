@@ -14,7 +14,7 @@ pub struct VectorParameters {
     pub invert: bool,
 }
 
-pub trait EncodedVectors<TEncodedQuery>: Sized {
+pub trait EncodedVectors<TEncodedQuery: Sized>: Sized {
     fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()>;
 
     fn load(
