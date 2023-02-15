@@ -4,7 +4,7 @@ mod metrics;
 #[cfg(test)]
 mod tests {
     use quantization::{
-        encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters},
+        encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
         encoded_vectors_u8::EncodedVectorsU8,
     };
     use rand::{Rng, SeedableRng};
@@ -31,7 +31,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::Dot,
+                distance_type: DistanceType::Dot,
                 invert: false,
             },
             None,
@@ -66,7 +66,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::L2,
+                distance_type: DistanceType::L2,
                 invert: false,
             },
             None,
@@ -101,7 +101,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::Dot,
+                distance_type: DistanceType::Dot,
                 invert: true,
             },
             None,
@@ -136,7 +136,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::L2,
+                distance_type: DistanceType::L2,
                 invert: true,
             },
             None,
@@ -170,7 +170,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::Dot,
+                distance_type: DistanceType::Dot,
                 invert: false,
             },
             None,
@@ -203,7 +203,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
-                distance_type: SimilarityType::Dot,
+                distance_type: DistanceType::Dot,
                 invert: true,
             },
             None,

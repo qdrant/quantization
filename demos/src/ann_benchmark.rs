@@ -1,7 +1,7 @@
 mod ann_benchmark_data;
 mod metrics;
 
-use quantization::encoded_vectors::{EncodedVectors, SimilarityType};
+use quantization::encoded_vectors::{EncodedVectors, DistanceType};
 
 #[cfg(target_arch = "x86_64")]
 use crate::metrics::utils_avx2::dot_avx;
@@ -15,68 +15,68 @@ use crate::metrics::utils_neon::dot_neon;
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
 
-const DATASETS: [(&str, &str, SimilarityType); 11] = [
+const DATASETS: [(&str, &str, DistanceType); 11] = [
     (
         "test_data/glove-200-angular.hdf5",
         "http://ann-benchmarks.com/glove-200-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/glove-100-angular.hdf5",
         "http://ann-benchmarks.com/glove-100-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/glove-50-angular.hdf5",
         "http://ann-benchmarks.com/glove-50-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/glove-25-angular.hdf5",
         "http://ann-benchmarks.com/glove-25-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/DEEP1B.hdf5",
         "http://ann-benchmarks.com/deep-image-96-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/NYTimes.hdf5",
         "http://ann-benchmarks.com/nytimes-256-angular.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/LastFM.hdf5",
         "http://ann-benchmarks.com/lastfm-64-dot.hdf5",
-        SimilarityType::Dot,
+        DistanceType::Dot,
     ),
     (
         "test_data/Fashion-MNIST.hdf5",
         "http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5",
-        SimilarityType::L2,
+        DistanceType::L2,
     ),
     (
         "test_data/GIST.hdf5",
         "http://ann-benchmarks.com/gist-960-euclidean.hdf5",
-        SimilarityType::L2,
+        DistanceType::L2,
     ),
     (
         "test_data/MNIST.hdf5",
         "http://ann-benchmarks.com/mnist-784-euclidean.hdf5",
-        SimilarityType::L2,
+        DistanceType::L2,
     ),
     (
         "test_data/SIFT.hdf5",
         "http://ann-benchmarks.com/sift-128-euclidean.hdf5",
-        SimilarityType::L2,
+        DistanceType::L2,
     ),
 ];
 
 fn main() {
     for dataset in &DATASETS {
         let mut data = AnnBenchmarkData::new(dataset.0, dataset.1);
-        if dataset.2 == SimilarityType::Dot {
+        if dataset.2 == DistanceType::Dot {
             data.cosine_preprocess();
         }
 
@@ -229,7 +229,7 @@ fn main() {
         }
 
         println!("Estimate knn accuracy");
-        if dataset.2 == SimilarityType::Dot {
+        if dataset.2 == DistanceType::Dot {
             data.test_knn(&encoded, |x| 1.0 - x);
         } else {
             data.test_knn(&encoded, |x| x);

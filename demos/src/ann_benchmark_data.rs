@@ -2,7 +2,7 @@ use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use quantization::{
-    encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters},
+    encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
     encoded_vectors_u8::EncodedVectorsU8,
 };
 
@@ -95,7 +95,7 @@ impl AnnBenchmarkData {
 
     pub fn encode_data(
         &self,
-        distance_type: SimilarityType,
+        distance_type: DistanceType,
         quantile: Option<f32>,
     ) -> EncodedVectorsU8<Vec<u8>> {
         println!("Start encoding:");

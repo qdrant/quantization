@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::quantile::find_quantile_interval;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
-    encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters},
+    encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
     EncodingError,
 };
 
@@ -62,19 +62,19 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
             if dim % ALIGHMENT != 0 {
                 for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
                     let placeholder = match vector_parameters.distance_type {
-                        SimilarityType::Dot => 0.0,
-                        SimilarityType::L2 => offset,
+                        DistanceType::Dot => 0.0,
+                        DistanceType::L2 => offset,
                     };
                     let endoded = Self::f32_to_u8(placeholder, alpha, offset);
                     encoded_vector.push(endoded);
                 }
             }
             let vector_offset = match vector_parameters.distance_type {
-                SimilarityType::Dot => {
+                DistanceType::Dot => {
                     actual_dim as f32 * offset * offset
                         + encoded_vector.iter().map(|&x| x as f32).sum::<f32>() * alpha * offset
                 }
-                SimilarityType::L2 => {
+                DistanceType::L2 => {
                     actual_dim as f32 * offset * offset
                         + encoded_vector
                             .iter()
@@ -94,8 +94,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
             storage_builder.push_vector_data(&encoded_vector);
         }
         let multiplier = match vector_parameters.distance_type {
-            SimilarityType::Dot => alpha * alpha,
-            SimilarityType::L2 => -2.0 * alpha * alpha,
+            DistanceType::Dot => alpha * alpha,
+            DistanceType::L2 => -2.0 * alpha * alpha,
         };
         let multiplier = if vector_parameters.invert {
             -multiplier
@@ -261,8 +261,8 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         if dim % ALIGHMENT != 0 {
             for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
                 let placeholder = match self.metadata.vector_parameters.distance_type {
-                    SimilarityType::Dot => 0.0,
-                    SimilarityType::L2 => self.metadata.offset,
+                    DistanceType::Dot => 0.0,
+                    DistanceType::L2 => self.metadata.offset,
                 };
                 let endoded =
                     Self::f32_to_u8(placeholder, self.metadata.alpha, self.metadata.offset);
@@ -270,12 +270,12 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
             }
         }
         let offset = match self.metadata.vector_parameters.distance_type {
-            SimilarityType::Dot => {
+            DistanceType::Dot => {
                 query.iter().map(|&x| x as f32).sum::<f32>()
                     * self.metadata.alpha
                     * self.metadata.offset
             }
-            SimilarityType::L2 => {
+            DistanceType::L2 => {
                 query.iter().map(|&x| x as f32 * x as f32).sum::<f32>()
                     * self.metadata.alpha
                     * self.metadata.alpha

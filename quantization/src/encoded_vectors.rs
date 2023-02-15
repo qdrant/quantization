@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SimilarityType {
+pub enum DistanceType {
     Dot,
     L2,
 }
@@ -10,7 +10,7 @@ pub enum SimilarityType {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VectorParameters {
     pub dim: usize,
-    pub distance_type: SimilarityType,
+    pub distance_type: DistanceType,
     pub invert: bool,
 }
 

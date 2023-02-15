@@ -6,7 +6,7 @@ mod metrics;
 mod tests {
     use crate::metrics::{dot_similarity, l2_similarity};
     use quantization::{
-        encoded_vectors::{EncodedVectors, SimilarityType, VectorParameters},
+        encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
         encoded_vectors_u8::EncodedVectorsU8,
     };
     use rand::{Rng, SeedableRng};
