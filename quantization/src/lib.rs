@@ -3,6 +3,8 @@ pub mod encoded_vectors;
 pub mod encoded_vectors_u8;
 pub mod quantile;
 
+use std::fmt::Display;
+
 pub use encoded_vectors::DistanceType;
 pub use encoded_vectors::VectorParameters;
 pub use encoded_vectors::EncodedVectors;
@@ -16,4 +18,10 @@ pub use encoded_vectors_u8::EncodedQueryU8;
 #[derive(Debug)]
 pub struct EncodingError {
     pub description: String,
+}
+
+impl Display for EncodingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.description)
+    }
 }
