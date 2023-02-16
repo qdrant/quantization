@@ -32,7 +32,7 @@ mod tests {
             &VectorParameters {
                 dim: vector_dim,
                 count: vectors_count,
-                distance_type: SimilarityType::Dot,
+                distance_type: DistanceType::Dot,
                 invert: false,
             },
             None,
@@ -68,7 +68,7 @@ mod tests {
             &VectorParameters {
                 dim: vector_dim,
                 count: vectors_count,
-                distance_type: SimilarityType::L2,
+                distance_type: DistanceType::L2,
                 invert: false,
             },
             None,
