@@ -1,5 +1,5 @@
 use quantization::{
-    encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
+    encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
     encoded_vectors_u8::EncodedVectorsU8,
 };
 use rand::{Rng, SeedableRng};
@@ -26,6 +26,7 @@ fn main() {
         Vec::<u8>::new(),
         &VectorParameters {
             dim: vector_dim,
+            count: vectors_count,
             distance_type: DistanceType::Dot,
             invert: false,
         },

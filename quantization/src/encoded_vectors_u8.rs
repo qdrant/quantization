@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::quantile::find_quantile_interval;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
-    encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
+    encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
     EncodingError,
 };
 
@@ -244,7 +244,8 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         file.read_to_string(&mut contents)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
         let quantized_vector_size = Self::get_quantized_vector_size(vector_parameters);
-        let encoded_vectors = TStorage::from_file(data_path, quantized_vector_size)?;
+        let encoded_vectors =
+            TStorage::from_file(data_path, quantized_vector_size, vector_parameters.count)?;
         let result = Self {
             metadata,
             encoded_vectors,

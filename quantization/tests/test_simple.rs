@@ -4,7 +4,7 @@ mod metrics;
 #[cfg(test)]
 mod tests {
     use quantization::{
-        encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
+        encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
         encoded_vectors_u8::EncodedVectorsU8,
     };
     use rand::{Rng, SeedableRng};
@@ -31,6 +31,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
@@ -66,6 +67,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::L2,
                 invert: false,
             },
@@ -101,6 +103,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::Dot,
                 invert: true,
             },
@@ -136,6 +139,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::L2,
                 invert: true,
             },
@@ -170,6 +174,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
@@ -203,6 +208,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: DistanceType::Dot,
                 invert: true,
             },

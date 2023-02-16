@@ -2,7 +2,7 @@ use std::arch::x86_64::*;
 
 #[target_feature(enable = "avx")]
 #[target_feature(enable = "fma")]
-#[inline]
+#[allow(clippy::missing_safety_doc)]
 pub(crate) unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
     let x128: __m128 = _mm_add_ps(_mm256_extractf128_ps(x, 1), _mm256_castps256_ps128(x));
     let x64: __m128 = _mm_add_ps(x128, _mm_movehl_ps(x128, x128));

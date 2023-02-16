@@ -6,7 +6,7 @@ mod metrics;
 mod tests {
     use crate::metrics::{dot_similarity, l2_similarity};
     use quantization::{
-        encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
+        encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
         encoded_vectors_u8::EncodedVectorsU8,
     };
     use rand::{Rng, SeedableRng};
@@ -31,6 +31,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: SimilarityType::Dot,
                 invert: false,
             },
@@ -66,6 +67,7 @@ mod tests {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
+                count: vectors_count,
                 distance_type: SimilarityType::L2,
                 invert: false,
             },

@@ -1,7 +1,7 @@
 mod ann_benchmark_data;
 mod metrics;
 
-use quantization::encoded_vectors::{EncodedVectors, DistanceType};
+use quantization::encoded_vectors::{DistanceType, EncodedVectors};
 
 #[cfg(target_arch = "x86_64")]
 use crate::metrics::utils_avx2::dot_avx;

@@ -10,6 +10,7 @@ pub enum DistanceType {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VectorParameters {
     pub dim: usize,
+    pub count: usize,
     pub distance_type: DistanceType,
     pub invert: bool,
 }

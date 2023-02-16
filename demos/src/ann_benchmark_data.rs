@@ -2,7 +2,7 @@ use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use quantization::{
-    encoded_vectors::{EncodedVectors, DistanceType, VectorParameters},
+    encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
     encoded_vectors_u8::EncodedVectorsU8,
 };
 
@@ -108,6 +108,7 @@ impl AnnBenchmarkData {
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: self.dim,
+                count: self.vectors_count,
                 distance_type,
                 invert: false,
             },

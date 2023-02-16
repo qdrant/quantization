@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use permutation_iterator::Permutor;
-use quantization::encoded_vectors::{EncodedVectors, DistanceType, VectorParameters};
+use quantization::encoded_vectors::{DistanceType, EncodedVectors, VectorParameters};
 use quantization::encoded_vectors_u8::EncodedVectorsU8;
 use rand::Rng;
 
@@ -29,6 +29,7 @@ fn encode_bench(c: &mut Criterion) {
         Vec::<u8>::new(),
         &VectorParameters {
             dim: vector_dim,
+            count: vectors_count,
             distance_type: DistanceType::Dot,
             invert: false,
         },
