@@ -133,7 +133,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
             let score = impl_score_dot_neon(
                 query.encoded_query.as_ptr() as *const u8,
                 v_ptr,
-                self.metadata.vector_parameters.dim as u32,
+                self.metadata.actual_dim as u32,
             );
             self.metadata.multiplier * score + query.offset + vector_offset
         }
@@ -317,7 +317,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         unsafe {
             if std::arch::is_aarch64_feature_detected!("neon") {
                 let score =
-                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.vector_parameters.dim as u32);
+                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
@@ -356,7 +356,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         unsafe {
             if std::arch::is_aarch64_feature_detected!("neon") {
                 let score =
-                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.vector_parameters.dim as u32);
+                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
         }
