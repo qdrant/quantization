@@ -27,12 +27,7 @@ fn main() {
         } else {
             builder.flag("-march=haswell");
         }
-    } else if target_arch == "aarch64"
-        && target_feature
-            .split(',')
-            .find(|&feat| feat == "neon")
-            .is_some()
-    {
+    } else if target_arch == "aarch64" && target_feature.contains("neon") {
         builder.file("cpp/neon.c");
     }
 
