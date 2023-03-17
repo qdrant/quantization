@@ -299,7 +299,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
 
         #[cfg(target_arch = "x86_64")]
         unsafe {
-            if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+            if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
                 let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
@@ -307,7 +307,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
-            if is_x86_feature_detected!("sse") {
+            if is_x86_feature_detected!("sse4.1") {
                 let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
@@ -316,8 +316,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         unsafe {
             if std::arch::is_aarch64_feature_detected!("neon") {
-                let score =
-                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
+                let score = impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + query.offset + vector_offset;
             }
         }
@@ -338,7 +337,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
 
         #[cfg(target_arch = "x86_64")]
         unsafe {
-            if is_x86_feature_detected!("avx") && is_x86_feature_detected!("fma") {
+            if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
                 let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
@@ -346,7 +345,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
-            if is_x86_feature_detected!("sse") {
+            if is_x86_feature_detected!("sse4.1") {
                 let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
@@ -355,8 +354,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         unsafe {
             if std::arch::is_aarch64_feature_detected!("neon") {
-                let score =
-                    impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
+                let score = impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
                 return self.metadata.multiplier * score + offset;
             }
         }

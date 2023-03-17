@@ -1,6 +1,6 @@
 use std::arch::x86_64::*;
 
-#[target_feature(enable = "avx")]
+#[target_feature(enable = "avx2")]
 #[target_feature(enable = "fma")]
 #[allow(clippy::missing_safety_doc)]
 pub(crate) unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
@@ -10,7 +10,7 @@ pub(crate) unsafe fn hsum256_ps_avx(x: __m256) -> f32 {
     _mm_cvtss_f32(x32)
 }
 
-#[target_feature(enable = "avx")]
+#[target_feature(enable = "avx2")]
 #[target_feature(enable = "fma")]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
