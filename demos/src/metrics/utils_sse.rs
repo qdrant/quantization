@@ -1,14 +1,14 @@
 use std::arch::x86_64::*;
 
 #[allow(clippy::missing_safety_doc)]
-#[target_feature(enable = "sse")]
+#[target_feature(enable = "sse4.1")]
 pub(crate) unsafe fn hsum128_ps_sse(x: __m128) -> f32 {
     let x64: __m128 = _mm_add_ps(x, _mm_movehl_ps(x, x));
     let x32: __m128 = _mm_add_ss(x64, _mm_shuffle_ps(x64, x64, 0x55));
     _mm_cvtss_f32(x32)
 }
 
-#[target_feature(enable = "sse")]
+#[target_feature(enable = "sse4.1")]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe fn dot_sse(v1: &[f32], v2: &[f32]) -> f32 {
     let n = v1.len();

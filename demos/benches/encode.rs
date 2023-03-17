@@ -23,9 +23,7 @@ fn encode_bench(c: &mut Criterion) {
     }
 
     let i8_encoded = EncodedVectorsU8::encode(
-        (0..vectors_count)
-            .into_iter()
-            .map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
+        (0..vectors_count).map(|i| &list[i * vector_dim..(i + 1) * vector_dim]),
         Vec::<u8>::new(),
         &VectorParameters {
             dim: vector_dim,
