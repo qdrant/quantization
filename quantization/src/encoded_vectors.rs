@@ -30,3 +30,12 @@ pub trait EncodedVectors<TEncodedQuery: Sized>: Sized {
 
     fn score_internal(&self, i: u32, j: u32) -> f32;
 }
+
+impl DistanceType {
+    pub fn distance(&self, a: &[f32], b: &[f32]) -> f32 {
+        match self {
+            DistanceType::Dot => a.iter().zip(b.iter()).map(|(a, b)| a * b).sum(),
+            DistanceType::L2 => a.iter().zip(b.iter()).map(|(a, b)| (a - b) * (a - b)).sum(),
+        }
+    }
+}

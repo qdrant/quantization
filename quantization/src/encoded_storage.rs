@@ -22,6 +22,10 @@ pub trait EncodedStorageBuilder<TStorage: EncodedStorage> {
     fn build(self) -> TStorage;
 
     fn push_vector_data(&mut self, other: &[u8]);
+
+    fn set(&mut self, index: usize, value: u8);
+
+    fn get(&self, index: usize) -> u8;
 }
 
 impl EncodedStorage for Vec<u8> {
@@ -66,5 +70,13 @@ impl EncodedStorageBuilder<Vec<u8>> for Vec<u8> {
 
     fn push_vector_data(&mut self, other: &[u8]) {
         self.extend_from_slice(other);
+    }
+
+    fn set(&mut self, index: usize, value: u8) {
+        self[index] = value;
+    }
+
+    fn get(&self, index: usize) -> u8 {
+        self[index]
     }
 }

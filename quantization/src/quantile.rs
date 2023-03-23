@@ -2,6 +2,28 @@ use permutation_iterator::Permutor;
 
 pub const QUANTILE_SAMPLE_SIZE: usize = 100_000;
 
+pub(crate) fn find_min_max_size_dim_from_iter<'a>(
+    iter: impl IntoIterator<Item = &'a [f32]>,
+) -> (f32, f32, usize, usize) {
+    let mut min = f32::MAX;
+    let mut max = f32::MIN;
+    let mut count: usize = 0;
+    let mut dim: usize = 0;
+    for vector in iter {
+        count += 1;
+        dim = dim.max(vector.len());
+        for &value in vector {
+            if value < min {
+                min = value;
+            }
+            if value > max {
+                max = value;
+            }
+        }
+    }
+    (min, max, count, dim)
+}
+
 pub(crate) fn find_quantile_interval<'a>(
     vector_data: impl IntoIterator<Item = &'a [f32]>,
     dim: usize,
@@ -36,16 +58,7 @@ pub(crate) fn find_quantile_interval<'a>(
         return None;
     }
 
-    let mut min = f32::MAX;
-    let mut max = f32::MIN;
-    for value in selected_values {
-        if *value < min {
-            min = *value;
-        }
-        if *value > max {
-            max = *value;
-        }
-    }
-
+    let selected_values = [selected_values];
+    let (min, max, _, _) = find_min_max_size_dim_from_iter(selected_values.iter().map(|v| &v[..]));
     Some((min, max))
 }

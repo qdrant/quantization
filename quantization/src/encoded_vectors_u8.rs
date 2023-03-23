@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use crate::quantile::find_quantile_interval;
+use crate::quantile::{find_min_max_size_dim_from_iter, find_quantile_interval};
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
@@ -168,24 +168,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     fn find_alpha_offset_size_dim<'a>(
         orig_data: impl IntoIterator<Item = &'a [f32]>,
     ) -> (f32, f32, usize, usize) {
-        let mut min = f32::MAX;
-        let mut max = f32::MIN;
-        let mut count: usize = 0;
-        let mut dim: usize = 0;
-        for vector in orig_data {
-            count += 1;
-            dim = dim.max(vector.len());
-            for &value in vector {
-                if value < min {
-                    min = value;
-                }
-                if value > max {
-                    max = value;
-                }
-            }
-        }
+        let (min, max, size, dim) = find_min_max_size_dim_from_iter(orig_data);
         let (alpha, offset) = Self::alpha_offset_from_min_max(min, max);
-        (alpha, offset, count, dim)
+        (alpha, offset, size, dim)
     }
 
     fn alpha_offset_from_min_max(min: f32, max: f32) -> (f32, f32) {
