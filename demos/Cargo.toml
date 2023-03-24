@@ -18,6 +18,7 @@ ndarray = "0.15"
 reqwest = { version = "0.11.13", features = ["blocking"] }
 indicatif = "0.17.2"
 permutation_iterator = "0.1.2"
+clap = { version = "4.1.1", features = ["derive"] }
 
 [[bin]]
 name = "basic"

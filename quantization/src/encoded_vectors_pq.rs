@@ -14,7 +14,6 @@ pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
     metadata: Metadata,
 }
-
 pub struct EncodedQueryPQ {
     lut: Vec<f32>,
 }
