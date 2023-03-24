@@ -22,7 +22,7 @@ impl KMeans {
         bucket_size: usize,
         centroids_count: u8,
     ) -> Result<Self, EncodingError> {
-        let (min, max, _count, dim) = find_min_max_size_dim_from_iter(data.clone());
+        let (min, max, count, dim) = find_min_max_size_dim_from_iter(data.clone());
 
         let vector_division = (0..dim)
             .step_by(bucket_size)
@@ -36,6 +36,11 @@ impl KMeans {
             })
             .collect::<Vec<_>>();
 
+        let empty_vector = vec![0u8; vector_division.len()];
+        for _ in 0..count {
+            storage_builder.push_vector_data(&empty_vector);
+        }
+
         let mut kmeans = Self {
             bucket_size,
             centroids,
@@ -43,6 +48,7 @@ impl KMeans {
         };
 
         for _ in 0..30 {
+            println!("KMeans Iteration");
             kmeans.update_indexes(data.clone(), storage_builder);
             if kmeans.update_centroids(data.clone(), storage_builder) {
                 break;
@@ -58,6 +64,7 @@ impl KMeans {
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         storage_builder: &impl EncodedStorageBuilder<TStorage>,
     ) -> bool {
+        println!("Update Centroids");
         let mut byte_index = 0;
         let mut centroids_counter =
             vec![vec![0usize; self.vector_division[0].len()]; self.centroids.len()];
@@ -94,6 +101,7 @@ impl KMeans {
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
     ) {
+        println!("Update Indexes");
         let mut byte_index = 0;
         for vector_data in data.into_iter() {
             for range in &self.vector_division {
