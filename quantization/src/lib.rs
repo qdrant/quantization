@@ -17,6 +17,9 @@ pub use encoded_storage::EncodedStorageBuilder;
 pub use encoded_vectors_u8::EncodedQueryU8;
 pub use encoded_vectors_u8::EncodedVectorsU8;
 
+pub use encoded_vectors_pq::EncodedQueryPQ;
+pub use encoded_vectors_pq::EncodedVectorsPQ;
+
 #[derive(Debug)]
 pub struct EncodingError {
     pub description: String,
