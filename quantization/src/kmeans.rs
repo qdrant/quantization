@@ -56,7 +56,7 @@ impl KMeans {
         }
 
         kmeans.update_indexes(data.clone(), storage_builder);
-        //kmeans.build_image(data, storage_builder, min, max);
+        kmeans.build_image(data, storage_builder, min, max);
         Ok(kmeans)
     }
 
@@ -139,7 +139,6 @@ impl KMeans {
         }
     }
 
-/*
     fn build_image<'a, TStorage: EncodedStorage>(
         &self,
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
@@ -197,5 +196,4 @@ impl KMeans {
             imgbuf.save(&format!("target/kmeans-{range_i}.png")).unwrap();
         }
     }
-*/
 }
