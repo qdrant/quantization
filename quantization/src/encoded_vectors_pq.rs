@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
+use std::ops::Range;
 use std::path::Path;
 
 use crate::kmeans::KMeans;
@@ -42,6 +43,18 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 vector_parameters: vector_parameters.clone(),
             },
         })
+    }
+
+    pub fn get_quantized_vector_size(vector_parameters: &VectorParameters, bucket_size: usize) -> usize {
+        let vector_division = Self::get_vector_division(vector_parameters.dim, bucket_size);
+        vector_division.len()
+    }
+
+    pub fn get_vector_division(dim: usize, bucket_size: usize) -> Vec<Range<usize>> {
+        (0..dim)
+            .step_by(bucket_size)
+            .map(|i| i..std::cmp::min(i + bucket_size, dim))
+            .collect::<Vec<_>>()
     }
 }
 
