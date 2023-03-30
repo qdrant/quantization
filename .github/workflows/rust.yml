@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: apt-get update
-      run: apt-get update
+      run: sudo apt-get update
     - name: Install HDF5
       run: sudo apt-get install libhdf5-dev
     - name: Install minimal stable
