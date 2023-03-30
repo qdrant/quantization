@@ -46,8 +46,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             centroids_count,
         )?;
 
+        #[allow(clippy::redundant_clone)]
         Self::encode_storage(
-            orig_data,
+            orig_data.clone(),
             &mut storage_builder,
             &vector_division,
             &centroids,
