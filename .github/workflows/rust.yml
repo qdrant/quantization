@@ -15,8 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Install HDF5
+    - name: apt-get update
       run: apt-get update
+    - name: Install HDF5
       run: sudo apt-get install libhdf5-dev
     - name: Install minimal stable
       uses: actions-rs/toolchain@v1
