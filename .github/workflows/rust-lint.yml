@@ -16,6 +16,7 @@ jobs:
 
     steps:
     - name: Install HDF5
+      run: apt-get update
       run: sudo apt-get install libhdf5-dev
     - name: Install minimal stable
       uses: actions-rs/toolchain@v1
