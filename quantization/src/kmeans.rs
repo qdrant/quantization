@@ -1,10 +1,4 @@
-
-pub fn kmeans(
-    data: &[f32],
-    centroids_count: usize,
-    dim: usize,
-    max_iterations: usize,
-) -> Vec<f32> {
+pub fn kmeans(data: &[f32], centroids_count: usize, dim: usize, max_iterations: usize) -> Vec<f32> {
     let mut centroids = data[0..centroids_count * dim].to_vec();
     let mut centroid_indexes = vec![0u32; data.len() / dim];
 
@@ -18,11 +12,7 @@ pub fn kmeans(
     centroids
 }
 
-fn update_centroids(
-    data: &[f32],
-    centroid_indexes: &[u32],
-    centroids: &mut [f32],
-) -> bool {
+fn update_centroids(data: &[f32], centroid_indexes: &[u32], centroids: &mut [f32]) -> bool {
     let dim = data.len() / centroid_indexes.len();
     let centroids_count = centroids.len() / dim;
 
@@ -61,11 +51,7 @@ fn update_centroids(
     false
 }
 
-fn update_indexes(
-    data: &[f32],
-    centroid_indexes: &mut [u32],
-    centroids: &[f32],
-) {
+fn update_indexes(data: &[f32], centroid_indexes: &mut [u32], centroids: &[f32]) {
     let dim = data.len() / centroid_indexes.len();
     for (i, vector_data) in data.chunks_exact(dim).enumerate() {
         let mut min_distance = f32::MAX;

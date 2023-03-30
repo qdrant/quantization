@@ -47,7 +47,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         )?;
 
         Self::encode_storage(
-            orig_data.clone(),
+            orig_data,
             &mut storage_builder,
             &vector_division,
             &centroids,
@@ -56,12 +56,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let storage = storage_builder.build();
 
         #[cfg(feature = "dump_image")]
-        Self::dump_to_image(
-            orig_data,
-            &storage,
-            &centroids,
-            &vector_division,
-        );
+        Self::dump_to_image(orig_data, &storage, &centroids, &vector_division);
 
         Ok(Self {
             encoded_vectors: storage,
@@ -128,11 +123,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         // generate random subset of data
         let sample_size = KMEANS_SAMPLE_SIZE.min(count);
         let permutor = permutation_iterator::Permutor::new(count as u64);
-        let mut selected_vectors: Vec<usize> = permutor.map(|i| i as usize).take(sample_size).collect();
+        let mut selected_vectors: Vec<usize> =
+            permutor.map(|i| i as usize).take(sample_size).collect();
         selected_vectors.sort_unstable();
-    
+
         let mut result = vec![vec![]; centroids_count];
-    
+
         for range in vector_division.iter() {
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
             let mut selected_index: usize = 0;
@@ -145,13 +141,18 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     }
                 }
             }
-    
-            let centroids = kmeans(&data_subset, centroids_count, range.len(), KMEANS_MAX_ITERATIONS);
+
+            let centroids = kmeans(
+                &data_subset,
+                centroids_count,
+                range.len(),
+                KMEANS_MAX_ITERATIONS,
+            );
             for (centroid_index, centroid_data) in centroids.chunks_exact(range.len()).enumerate() {
                 result[centroid_index].extend_from_slice(centroid_data);
             }
         }
-    
+
         Ok(result)
     }
 
@@ -162,8 +163,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         centroids: &[Vec<f32>],
         vector_division: &[Range<usize>],
     ) {
-        let (min, max, _count, _dim) = crate::quantile::find_min_max_size_dim_from_iter(data.clone());
-    
+        let (min, max, _count, _dim) =
+            crate::quantile::find_min_max_size_dim_from_iter(data.clone());
+
         let colors_r: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
         let colors_g: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
         let colors_b: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
@@ -173,17 +175,18 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             }
 
             let mut centroids_counter = (0..centroids.len()).map(|_| 0usize).collect::<Vec<_>>();
-    
+
             let imgx = 1000;
             let imgy = 1000;
             let mut imgbuf = image::ImageBuffer::new(imgx, imgy);
             for (_x, _y, pixel) in imgbuf.enumerate_pixels_mut() {
                 *pixel = image::Rgb([255u8, 255u8, 255u8]);
             }
-    
+
             for (i, vector_data) in data.clone().into_iter().enumerate() {
                 let subvector_data = &vector_data[range.clone()];
-                let centroid_index = storage.get_vector_data(i, vector_division.len())[range_i] as usize;
+                let centroid_index =
+                    storage.get_vector_data(i, vector_division.len())[range_i] as usize;
                 centroids_counter[centroid_index] += 1;
                 let x = (((subvector_data[0] - min) / (max - min)) * imgx as f32)
                     .clamp(0., imgx as f32 - 1.0) as u32;
@@ -195,7 +198,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     colors_b[centroid_index],
                 ]);
             }
-    
+
             for centroid in centroids {
                 let subvector_data = &centroid[range.clone()];
                 let x = (((subvector_data[0] - min) / (max - min)) * imgx as f32)
@@ -212,7 +215,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 .save(&format!("target/kmeans-{range_i}.png"))
                 .unwrap();
         }
-    }    
+    }
 }
 
 impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectorsPQ<TStorage> {

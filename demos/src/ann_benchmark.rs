@@ -107,7 +107,7 @@ fn main() {
     let args = Args::parse();
 
     for dataset in &DATASETS {
-        if dataset.0.find(&args.dataset).is_none() {
+        if dataset.0.contains(&args.dataset) {
             continue;
         }
 
