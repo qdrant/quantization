@@ -13,6 +13,7 @@ use crate::{
 
 pub const KMEANS_SAMPLE_SIZE: usize = 10_000;
 pub const KMEANS_MAX_ITERATIONS: usize = 100;
+pub const KMEANS_ACCURACY: f32 = 1e-5;
 
 pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
@@ -77,7 +78,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_division.len()
     }
 
-    pub fn get_vector_division(dim: usize, bucket_size: usize) -> Vec<Range<usize>> {
+    fn get_vector_division(dim: usize, bucket_size: usize) -> Vec<Range<usize>> {
         (0..dim)
             .step_by(bucket_size)
             .map(|i| i..std::cmp::min(i + bucket_size, dim))
@@ -148,6 +149,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 centroids_count,
                 range.len(),
                 KMEANS_MAX_ITERATIONS,
+                KMEANS_ACCURACY,
             );
             for (centroid_index, centroid_data) in centroids.chunks_exact(range.len()).enumerate() {
                 result[centroid_index].extend_from_slice(centroid_data);
@@ -212,9 +214,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 *imgbuf.get_pixel_mut(x, y + 1) = image::Rgb([255u8, 0u8, 0u8]);
             }
 
-            imgbuf
-                .save(&format!("target/kmeans-{range_i}.png"))
-                .unwrap();
+            imgbuf.save(&format!("kmeans-{range_i}.png")).unwrap();
         }
     }
 }

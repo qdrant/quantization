@@ -1,10 +1,17 @@
-pub fn kmeans(data: &[f32], centroids_count: usize, dim: usize, max_iterations: usize) -> Vec<f32> {
+pub fn kmeans(
+    data: &[f32],
+    centroids_count: usize,
+    dim: usize,
+    max_iterations: usize,
+    accuracy: f32,
+) -> Vec<f32> {
+    // initial centroids positions are some vectors from data
     let mut centroids = data[0..centroids_count * dim].to_vec();
     let mut centroid_indexes = vec![0u32; data.len() / dim];
 
     for _ in 0..max_iterations {
         update_indexes(data, &mut centroid_indexes, &centroids);
-        if update_centroids(data, &centroid_indexes, &mut centroids) {
+        if update_centroids(data, &centroid_indexes, &mut centroids, accuracy) {
             break;
         }
     }
@@ -12,7 +19,12 @@ pub fn kmeans(data: &[f32], centroids_count: usize, dim: usize, max_iterations: 
     centroids
 }
 
-fn update_centroids(data: &[f32], centroid_indexes: &[u32], centroids: &mut [f32]) -> bool {
+fn update_centroids(
+    data: &[f32],
+    centroid_indexes: &[u32],
+    centroids: &mut [f32],
+    accuracy: f32,
+) -> bool {
     let dim = data.len() / centroid_indexes.len();
     let centroids_count = centroids.len() / dim;
 
@@ -21,7 +33,7 @@ fn update_centroids(data: &[f32], centroid_indexes: &[u32], centroids: &mut [f32
     let mut rand_vectors = Vec::with_capacity(centroids_count);
 
     for (i, vector_data) in data.chunks_exact(dim).enumerate() {
-        // take some vector for case when centroid is not updated
+        // take some vector for case when there are no near points for centroid
         if rand_vectors.len() < centroids_count {
             rand_vectors.push(vector_data);
         }
@@ -45,10 +57,13 @@ fn update_centroids(data: &[f32], centroid_indexes: &[u32], centroids: &mut [f32
         }
     }
 
+    let mut diff = 0.0;
     for (c, c_acc) in centroids.iter_mut().zip(centroids_acc.iter()) {
-        *c = *c_acc as f32;
+        let c_acc = *c_acc as f32;
+        diff += (*c - c_acc).abs();
+        *c = c_acc;
     }
-    false
+    diff < accuracy
 }
 
 fn update_indexes(data: &[f32], centroid_indexes: &mut [u32], centroids: &[f32]) {
