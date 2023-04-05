@@ -31,3 +31,7 @@ path = "src/ann_benchmark.rs"
 [[bench]]
 name = "encode"
 harness = false
+
+[[bench]]
+name = "pq"
+harness = false

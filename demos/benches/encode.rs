@@ -13,8 +13,8 @@ use demos::metrics::utils_sse::dot_sse;
 fn encode_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
-    let vectors_count = 1_000_000;
-    let vector_dim = 512;
+    let vectors_count = 100_000;
+    let vector_dim = 1024;
     let mut rng = rand::thread_rng();
     let mut list: Vec<f32> = Vec::new();
     for _ in 0..vectors_count {
@@ -112,7 +112,7 @@ fn encode_bench(c: &mut Criterion) {
     });
 
     #[cfg(target_arch = "aarch64")]
-    group.bench_function("score random access u8 sse", |b| {
+    group.bench_function("score random access u8 neon", |b| {
         let mut _s = 0.0;
         b.iter(|| {
             for &i in &permutation {
@@ -139,43 +139,6 @@ fn encode_bench(c: &mut Criterion) {
             for &i in &permutation {
                 let i = i as usize;
                 _s = dot_sse(&query, &list[i * vector_dim..(i + 1) * vector_dim]);
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    group.bench_function("score random access blocks avx", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| unsafe {
-            for window in permutation.as_slice().chunks_exact(16) {
-                for (i, idx) in window.iter().enumerate() {
-                    let idx = *idx as usize;
-                    scores[i] = dot_sse(&query, &list[idx * vector_dim..(idx + 1) * vector_dim]);
-                }
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    group.bench_function("score random access blocks i8 avx", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| {
-            for window in permutation.as_slice().chunks_exact(16) {
-                for (i, idx) in window.iter().enumerate() {
-                    scores[i] = i8_encoded.score_point_avx(&encoded_query, *idx);
-                }
-            }
-        });
-    });
-
-    #[cfg(target_arch = "x86_64")]
-    group.bench_function("score random access blocks i8 sse", |b| {
-        let mut scores = vec![0.0; 16];
-        b.iter(|| {
-            for window in permutation.as_slice().chunks_exact(16) {
-                for (i, idx) in window.iter().enumerate() {
-                    scores[i] = i8_encoded.score_point_sse(&encoded_query, *idx);
-                }
             }
         });
     });
