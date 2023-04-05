@@ -47,7 +47,10 @@ fn encode_bench(c: &mut Criterion) {
     group.bench_function("score random access avx", |b| {
         b.iter(|| unsafe {
             let random_idx = rand::random::<usize>() % vectors_count;
-            total += dot_avx(&query, &list[random_idx * vector_dim..(random_idx + 1) * vector_dim]);
+            total += dot_avx(
+                &query,
+                &list[random_idx * vector_dim..(random_idx + 1) * vector_dim],
+            );
         });
     });
 
