@@ -4,6 +4,9 @@ use std::io::prelude::*;
 use std::ops::Range;
 use std::path::Path;
 
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
+
 use crate::kmeans::kmeans;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
@@ -218,6 +221,64 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             imgbuf.save(&format!("kmeans-{range_i}.png")).unwrap();
         }
     }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn score_point_sse(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
+        let centroids = self
+            .encoded_vectors
+            .get_vector_data(i as usize, self.metadata.vector_division.len());
+        let len = centroids.len();
+        let centroids_count = self.metadata.centroids.len();
+
+        let mut centroids = centroids.as_ptr();
+        let mut lut = query.lut.as_ptr();
+        let mut sum128: __m128 = _mm_setzero_ps();
+        for _ in 0..len / 4 {
+            let buffer = [
+                *lut.add(*centroids as usize),
+                *lut.add(centroids_count + *centroids.add(1) as usize),
+                *lut.add(2 * centroids_count + *centroids.add(2) as usize),
+                *lut.add(3 * centroids_count + *centroids.add(3) as usize),
+            ];
+            let c = _mm_loadu_ps(buffer.as_ptr());
+            sum128 = _mm_add_ps(sum128, c);
+
+            centroids = centroids.add(4);
+            lut = lut.add(4 * centroids_count);
+        }
+        let sum64: __m128 = _mm_add_ps(sum128, _mm_movehl_ps(sum128, sum128));
+        let sum32: __m128 = _mm_add_ss(sum64, _mm_shuffle_ps(sum64, sum64, 0x55));
+        let mut sum = _mm_cvtss_f32(sum32);
+
+        for _ in 0..len % 4 {
+            sum += *lut.add(*centroids as usize);
+            centroids = centroids.add(1);
+            lut = lut.add(centroids_count);
+        }
+        sum
+    }
+
+    fn score_point_simple(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
+        unsafe {
+            let centroids = self
+                .encoded_vectors
+                .get_vector_data(i as usize, self.metadata.vector_division.len());
+            let len = centroids.len();
+            let centroids_count = self.metadata.centroids.len();
+
+            let mut centroids = centroids.as_ptr();
+            let mut lut = query.lut.as_ptr();
+
+            let mut sum = 0.0;
+            for _ in 0..len {
+                sum += *lut.add(*centroids as usize);
+                centroids = centroids.add(1);
+                lut = lut.add(centroids_count);
+            }
+            sum
+        }
+    }
 }
 
 impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectorsPQ<TStorage> {
@@ -275,24 +336,21 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
     }
 
     fn score_point(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         unsafe {
-            let centroids = self
-                .encoded_vectors
-                .get_vector_data(i as usize, self.metadata.vector_division.len());
-            let len = centroids.len();
-            let centroids_count = self.metadata.centroids.len();
-
-            let mut centroids = centroids.as_ptr();
-            let mut lut = query.lut.as_ptr();
-
-            let mut sum = 0.0;
-            for _ in 0..len {
-                sum += *lut.add(*centroids as usize);
-                centroids = centroids.add(1);
-                lut = lut.add(centroids_count);
+            if is_x86_feature_detected!("sse4.1") {
+                return self.score_point_sse(query, i);
             }
-            sum
         }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        unsafe {
+            if std::arch::is_aarch64_feature_detected!("neon") {
+                return self.score_point_neon(query, i);
+            }
+        }
+
+        self.score_point_simple(query, i)
     }
 
     fn score_internal(&self, i: u32, j: u32) -> f32 {
