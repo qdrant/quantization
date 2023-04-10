@@ -19,6 +19,7 @@ pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
     metadata: Metadata,
 }
+
 pub struct EncodedQueryPQ {
     lut: Vec<f32>,
 }
@@ -274,15 +275,24 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
     }
 
     fn score_point(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
-        let centroids = self
-            .encoded_vectors
-            .get_vector_data(i as usize, self.metadata.vector_division.len());
-        let centroids_count = self.metadata.centroids.len();
-        centroids
-            .iter()
-            .enumerate()
-            .map(|(i, &c)| query.lut[centroids_count * i + c as usize])
-            .sum()
+        unsafe {
+            let centroids = self
+                .encoded_vectors
+                .get_vector_data(i as usize, self.metadata.vector_division.len());
+            let len = centroids.len();
+            let centroids_count = self.metadata.centroids.len();
+
+            let mut centroids = centroids.as_ptr();
+            let mut lut = query.lut.as_ptr();
+
+            let mut sum = 0.0;
+            for _ in 0..len {
+                sum += *lut.add(*centroids as usize);
+                centroids = centroids.add(1);
+                lut = lut.add(centroids_count);
+            }
+            sum
+        }
     }
 
     fn score_internal(&self, i: u32, j: u32) -> f32 {
