@@ -138,6 +138,7 @@ fn main() {
                     Vec::<u8>::new(),
                     &vector_parameters,
                     args.bucket_size,
+                    num_cpus::get(),
                 )
                 .unwrap();
                 println!("encoding time: {:?}", timer.elapsed());

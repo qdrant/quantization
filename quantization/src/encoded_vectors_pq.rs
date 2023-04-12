@@ -44,6 +44,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         bucket_size: usize,
+        max_kmeans_threads: usize,
     ) -> Result<Self, EncodingError> {
         let vector_division = Self::get_vector_division(vector_parameters.dim, bucket_size);
 
@@ -53,6 +54,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             &vector_division,
             vector_parameters.count,
             centroids_count,
+            max_kmeans_threads,
         )?;
 
         #[allow(clippy::redundant_clone)]
@@ -129,6 +131,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_division: &[Range<usize>],
         count: usize,
         centroids_count: usize,
+        max_kmeans_threads: usize,
     ) -> Result<Vec<Vec<f32>>, EncodingError> {
         // generate random subset of data
         let sample_size = KMEANS_SAMPLE_SIZE.min(count);
@@ -157,8 +160,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 centroids_count,
                 range.len(),
                 KMEANS_MAX_ITERATIONS,
+                max_kmeans_threads,
                 KMEANS_ACCURACY,
-            );
+            )?;
             for (centroid_index, centroid_data) in centroids.chunks_exact(range.len()).enumerate() {
                 result[centroid_index].extend_from_slice(centroid_data);
             }
