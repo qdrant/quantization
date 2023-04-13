@@ -58,7 +58,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         )?;
 
         let t = std::time::Instant::now();
-        unsafe {
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
             orig_data.clone(),
@@ -68,7 +67,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             &centroids,
             max_kmeans_threads,
         );
-        }
         println!("Encoding took {:?}", t.elapsed());
 
         let storage = storage_builder.build();
@@ -101,7 +99,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    unsafe fn encode_storage<'a>(
+    fn encode_storage<'a>(
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
@@ -109,12 +107,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         centroids: &[Vec<f32>],
         max_kmeans_threads: usize,
     ) {
-        struct ThreadInfo {
-            handle: std::thread::JoinHandle<()>,
-            vector_sender: std::sync::mpsc::Sender<(usize, Vec<u8>)>,
-            encoded_receiver: std::sync::mpsc::Receiver<Vec<u8>>,
-        }
-
         let threads = (0..max_kmeans_threads).map(|_| {
             let (vector_sender, vector_receiver) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
             let (encoded_sender, encoded_receiver) = std::sync::mpsc::channel::<Vec<u8>>();
@@ -151,8 +143,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     encoded_sender.send(encoded_vector).unwrap();
                 }
             });
-            ThreadInfo {
-                handle,
+            EncodingThread {
+                handle: Some(handle),
                 vector_sender,
                 encoded_receiver,
             }
@@ -174,11 +166,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 busy_threads_count -= 1;
             }
 
-            let encoded = if let Some(v) = encoded_vectors_pool.pop() {
-                v
-            } else {
-                Vec::new()
-            };
+            let encoded = encoded_vectors_pool.pop().unwrap_or_default();
             threads[start_index].vector_sender.send((vector_data.as_ptr() as usize, encoded)).unwrap();
             start_index = next(start_index);
             busy_threads_count += 1;
@@ -188,11 +176,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             storage_builder.push_vector_data(&encoded);
             encoded_vectors_pool.push(encoded);
             end_index = next(end_index);
-        }
-
-        for thread in threads {
-            thread.vector_sender.send((0, vec![])).unwrap();
-            thread.handle.join().unwrap();
         }
     }
 
@@ -491,6 +474,21 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
             -distance
         } else {
             distance
+        }
+    }
+}
+
+struct EncodingThread {
+    handle: Option<std::thread::JoinHandle<()>>,
+    vector_sender: std::sync::mpsc::Sender<(usize, Vec<u8>)>,
+    encoded_receiver: std::sync::mpsc::Receiver<Vec<u8>>,
+}
+
+impl Drop for EncodingThread {
+    fn drop(&mut self) {
+        self.vector_sender.send((0, vec![])).unwrap();
+        if let Some(handle) = self.handle.take() {
+            handle.join().unwrap();
         }
     }
 }
