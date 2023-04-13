@@ -57,13 +57,19 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             max_kmeans_threads,
         )?;
 
+        let t = std::time::Instant::now();
+        unsafe {
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
             orig_data.clone(),
             &mut storage_builder,
+            vector_parameters,
             &vector_division,
             &centroids,
+            max_kmeans_threads,
         );
+        }
+        println!("Encoding took {:?}", t.elapsed());
 
         let storage = storage_builder.build();
 
@@ -95,34 +101,98 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    fn encode_storage<'a>(
+    unsafe fn encode_storage<'a>(
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
+        vector_parameters: &VectorParameters,
         vector_division: &[Range<usize>],
         centroids: &[Vec<f32>],
+        max_kmeans_threads: usize,
     ) {
-        let mut encoded_vector = vec![0u8; vector_division.len()];
-        for vector_data in data.into_iter() {
-            encoded_vector.clear();
-            for range in vector_division.iter() {
-                let subvector_data = &vector_data[range.clone()];
-                let mut min_distance = f32::MAX;
-                let mut min_centroid_index = 0;
-                for (centroid_index, centroid) in centroids.iter().enumerate() {
-                    let centroid_data = &centroid[range.clone()];
-                    let distance = subvector_data
-                        .iter()
-                        .zip(centroid_data.iter())
-                        .map(|(a, b)| (a - b).powi(2))
-                        .sum::<f32>();
-                    if distance < min_distance {
-                        min_distance = distance;
-                        min_centroid_index = centroid_index;
+        struct ThreadInfo {
+            handle: std::thread::JoinHandle<()>,
+            vector_sender: std::sync::mpsc::Sender<(usize, Vec<u8>)>,
+            encoded_receiver: std::sync::mpsc::Receiver<Vec<u8>>,
+        }
+
+        let threads = (0..max_kmeans_threads).map(|_| {
+            let (vector_sender, vector_receiver) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
+            let (encoded_sender, encoded_receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+            let vector_division = vector_division.to_vec();
+            let centroids = centroids.to_vec();
+            let vector_parameters = vector_parameters.clone();
+            let handle = std::thread::spawn(move || unsafe {
+                while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
+                    if vector_data == 0 {
+                        break;
                     }
+                    let vector_data: *const f32 = vector_data as *const f32;
+                    let vector_data = std::slice::from_raw_parts(vector_data, vector_parameters.dim);
+
+                    encoded_vector.clear();
+                    for range in vector_division.iter() {
+                        let subvector_data = &vector_data[range.clone()];
+                        let mut min_distance = f32::MAX;
+                        let mut min_centroid_index = 0;
+                        for (centroid_index, centroid) in centroids.iter().enumerate() {
+                            let centroid_data = &centroid[range.clone()];
+                            let distance = subvector_data
+                                .iter()
+                                .zip(centroid_data.iter())
+                                .map(|(a, b)| (a - b).powi(2))
+                                .sum::<f32>();
+                            if distance < min_distance {
+                                min_distance = distance;
+                                min_centroid_index = centroid_index;
+                            }
+                        }
+                        encoded_vector.push(min_centroid_index as u8);
+                    }
+                    encoded_sender.send(encoded_vector).unwrap();
                 }
-                encoded_vector.push(min_centroid_index as u8);
+            });
+            ThreadInfo {
+                handle,
+                vector_sender,
+                encoded_receiver,
             }
-            storage_builder.push_vector_data(&encoded_vector);
+        }).collect::<Vec<_>>();
+
+        let mut encoded_vectors_pool: Vec<Vec<u8>> = vec![];
+        let mut start_index = 0;
+        let mut end_index = 0;
+        let next = |i: usize| -> usize {
+            (i + 1) % max_kmeans_threads
+        };
+        let mut busy_threads_count = 0;
+        for vector_data in data.into_iter() {
+            if busy_threads_count > 0 && start_index == end_index {
+                let encoded = threads[end_index].encoded_receiver.recv().unwrap();
+                storage_builder.push_vector_data(&encoded);
+                encoded_vectors_pool.push(encoded);
+                end_index = next(end_index);
+                busy_threads_count -= 1;
+            }
+
+            let encoded = if let Some(v) = encoded_vectors_pool.pop() {
+                v
+            } else {
+                Vec::new()
+            };
+            threads[start_index].vector_sender.send((vector_data.as_ptr() as usize, encoded)).unwrap();
+            start_index = next(start_index);
+            busy_threads_count += 1;
+        }
+        for _ in 0..busy_threads_count {
+            let encoded = threads[end_index].encoded_receiver.recv().unwrap();
+            storage_builder.push_vector_data(&encoded);
+            encoded_vectors_pool.push(encoded);
+            end_index = next(end_index);
+        }
+
+        for thread in threads {
+            thread.vector_sender.send((0, vec![])).unwrap();
+            thread.handle.join().unwrap();
         }
     }
 
