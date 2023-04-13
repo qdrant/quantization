@@ -108,19 +108,15 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         max_kmeans_threads: usize,
     ) {
         let threads = (0..max_kmeans_threads).map(|_| {
-            let (vector_sender, vector_receiver) = std::sync::mpsc::channel::<(usize, Vec<u8>)>();
-            let (encoded_sender, encoded_receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+            let (vector_sender, vector_receiver) = std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
+            let (encoded_sender, encoded_receiver) = std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
             let vector_division = vector_division.to_vec();
             let centroids = centroids.to_vec();
-            let vector_parameters = vector_parameters.clone();
-            let handle = std::thread::spawn(move || unsafe {
+            let handle = std::thread::spawn(move || {
                 while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
-                    if vector_data == 0 {
+                    if vector_data.is_empty() {
                         break;
                     }
-                    let vector_data: *const f32 = vector_data as *const f32;
-                    let vector_data = std::slice::from_raw_parts(vector_data, vector_parameters.dim);
-
                     encoded_vector.clear();
                     for range in vector_division.iter() {
                         let subvector_data = &vector_data[range.clone()];
@@ -140,7 +136,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                         }
                         encoded_vector.push(min_centroid_index as u8);
                     }
-                    encoded_sender.send(encoded_vector).unwrap();
+                    encoded_sender.send((vector_data, encoded_vector)).unwrap();
                 }
             });
             EncodingThread {
@@ -150,7 +146,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             }
         }).collect::<Vec<_>>();
 
-        let mut encoded_vectors_pool: Vec<Vec<u8>> = vec![];
+        let mut encoded_pool: Vec<Vec<u8>> = vec![];
+        let mut vectors_pool: Vec<Vec<f32>> = vec![];
         let mut start_index = 0;
         let mut end_index = 0;
         let next = |i: usize| -> usize {
@@ -159,22 +156,24 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let mut busy_threads_count = 0;
         for vector_data in data.into_iter() {
             if busy_threads_count > 0 && start_index == end_index {
-                let encoded = threads[end_index].encoded_receiver.recv().unwrap();
+                let (vector, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
                 storage_builder.push_vector_data(&encoded);
-                encoded_vectors_pool.push(encoded);
+                encoded_pool.push(encoded);
+                vectors_pool.push(vector);
                 end_index = next(end_index);
                 busy_threads_count -= 1;
             }
 
-            let encoded = encoded_vectors_pool.pop().unwrap_or_default();
-            threads[start_index].vector_sender.send((vector_data.as_ptr() as usize, encoded)).unwrap();
+            let encoded = encoded_pool.pop().unwrap_or_default();
+            let mut v = vectors_pool.pop().unwrap_or_else(|| vec![0.0; vector_parameters.dim]);
+            v.copy_from_slice(vector_data);
+            threads[start_index].vector_sender.send((v, encoded)).unwrap();
             start_index = next(start_index);
             busy_threads_count += 1;
         }
         for _ in 0..busy_threads_count {
-            let encoded = threads[end_index].encoded_receiver.recv().unwrap();
+            let (_, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
             storage_builder.push_vector_data(&encoded);
-            encoded_vectors_pool.push(encoded);
             end_index = next(end_index);
         }
     }
@@ -480,13 +479,13 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
 
 struct EncodingThread {
     handle: Option<std::thread::JoinHandle<()>>,
-    vector_sender: std::sync::mpsc::Sender<(usize, Vec<u8>)>,
-    encoded_receiver: std::sync::mpsc::Receiver<Vec<u8>>,
+    vector_sender: std::sync::mpsc::Sender<(Vec<f32>, Vec<u8>)>,
+    encoded_receiver: std::sync::mpsc::Receiver<(Vec<f32>, Vec<u8>)>,
 }
 
 impl Drop for EncodingThread {
     fn drop(&mut self) {
-        self.vector_sender.send((0, vec![])).unwrap();
+        self.vector_sender.send((vec![], vec![])).unwrap();
         if let Some(handle) = self.handle.take() {
             handle.join().unwrap();
         }
