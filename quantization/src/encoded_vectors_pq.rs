@@ -107,52 +107,54 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         centroids: &[Vec<f32>],
         max_kmeans_threads: usize,
     ) {
-        let threads = (0..max_kmeans_threads).map(|_| {
-            let (vector_sender, vector_receiver) = std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-            let (encoded_sender, encoded_receiver) = std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-            let vector_division = vector_division.to_vec();
-            let centroids = centroids.to_vec();
-            let handle = std::thread::spawn(move || {
-                while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
-                    if vector_data.is_empty() {
-                        break;
-                    }
-                    encoded_vector.clear();
-                    for range in vector_division.iter() {
-                        let subvector_data = &vector_data[range.clone()];
-                        let mut min_distance = f32::MAX;
-                        let mut min_centroid_index = 0;
-                        for (centroid_index, centroid) in centroids.iter().enumerate() {
-                            let centroid_data = &centroid[range.clone()];
-                            let distance = subvector_data
-                                .iter()
-                                .zip(centroid_data.iter())
-                                .map(|(a, b)| (a - b).powi(2))
-                                .sum::<f32>();
-                            if distance < min_distance {
-                                min_distance = distance;
-                                min_centroid_index = centroid_index;
-                            }
+        let threads = (0..max_kmeans_threads)
+            .map(|_| {
+                let (vector_sender, vector_receiver) =
+                    std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
+                let (encoded_sender, encoded_receiver) =
+                    std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
+                let vector_division = vector_division.to_vec();
+                let centroids = centroids.to_vec();
+                let handle = std::thread::spawn(move || {
+                    while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
+                        if vector_data.is_empty() {
+                            break;
                         }
-                        encoded_vector.push(min_centroid_index as u8);
+                        encoded_vector.clear();
+                        for range in vector_division.iter() {
+                            let subvector_data = &vector_data[range.clone()];
+                            let mut min_distance = f32::MAX;
+                            let mut min_centroid_index = 0;
+                            for (centroid_index, centroid) in centroids.iter().enumerate() {
+                                let centroid_data = &centroid[range.clone()];
+                                let distance = subvector_data
+                                    .iter()
+                                    .zip(centroid_data.iter())
+                                    .map(|(a, b)| (a - b).powi(2))
+                                    .sum::<f32>();
+                                if distance < min_distance {
+                                    min_distance = distance;
+                                    min_centroid_index = centroid_index;
+                                }
+                            }
+                            encoded_vector.push(min_centroid_index as u8);
+                        }
+                        encoded_sender.send((vector_data, encoded_vector)).unwrap();
                     }
-                    encoded_sender.send((vector_data, encoded_vector)).unwrap();
+                });
+                EncodingThread {
+                    handle: Some(handle),
+                    vector_sender,
+                    encoded_receiver,
                 }
-            });
-            EncodingThread {
-                handle: Some(handle),
-                vector_sender,
-                encoded_receiver,
-            }
-        }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         let mut encoded_pool: Vec<Vec<u8>> = vec![];
         let mut vectors_pool: Vec<Vec<f32>> = vec![];
         let mut start_index = 0;
         let mut end_index = 0;
-        let next = |i: usize| -> usize {
-            (i + 1) % max_kmeans_threads
-        };
+        let next = |i: usize| -> usize { (i + 1) % max_kmeans_threads };
         let mut busy_threads_count = 0;
         for vector_data in data.into_iter() {
             if busy_threads_count > 0 && start_index == end_index {
@@ -165,9 +167,14 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             }
 
             let encoded = encoded_pool.pop().unwrap_or_default();
-            let mut v = vectors_pool.pop().unwrap_or_else(|| vec![0.0; vector_parameters.dim]);
+            let mut v = vectors_pool
+                .pop()
+                .unwrap_or_else(|| vec![0.0; vector_parameters.dim]);
             v.copy_from_slice(vector_data);
-            threads[start_index].vector_sender.send((v, encoded)).unwrap();
+            threads[start_index]
+                .vector_sender
+                .send((v, encoded))
+                .unwrap();
             start_index = next(start_index);
             busy_threads_count += 1;
         }
@@ -485,9 +492,10 @@ struct EncodingThread {
 
 impl Drop for EncodingThread {
     fn drop(&mut self) {
-        self.vector_sender.send((vec![], vec![])).unwrap();
-        if let Some(handle) = self.handle.take() {
-            handle.join().unwrap();
+        if self.vector_sender.send((vec![], vec![])).is_ok() {
+            if let Some(handle) = self.handle.take() {
+                handle.join().unwrap();
+            }
         }
     }
 }
