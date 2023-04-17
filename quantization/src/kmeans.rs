@@ -1,3 +1,4 @@
+use rand::Rng;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
@@ -101,20 +102,18 @@ fn update_centroids(
         }
     }
 
-    // take some vector for case when there are no near points for centroid
-    let mut rand_vectors = Vec::with_capacity(centroids_count);
-    for vector_data in data.chunks_exact(dim).take(centroids_count) {
-        rand_vectors.push(vector_data);
-    }
-
     for (centroid_index, centroid_data) in counter.acc.chunks_exact_mut(dim).enumerate() {
-        let rand_vector = &rand_vectors[centroid_index];
-        for (c, r) in centroid_data.iter_mut().zip(rand_vector.iter()) {
-            if counter.counter[centroid_index] == 0 {
-                *c = *r as f64;
-            } else {
-                *c /= counter.counter[centroid_index] as f64;
-            }
+        if counter.counter[centroid_index] == 0 {
+            // the cluster is empty, so we take random vector as centroid
+            let data_index: usize = rand::thread_rng().gen_range(0..centroid_indexes.len());
+            let vector = &data[dim * data_index..dim * (data_index + 1)];
+            centroid_data
+                .iter_mut()
+                .zip(vector.iter())
+                .for_each(|(c, v)| *c = *v as f64);
+        } else {
+            let count = counter.counter[centroid_index] as f64;
+            centroid_data.iter_mut().for_each(|c| *c /= count);
         }
     }
 

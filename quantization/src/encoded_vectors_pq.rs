@@ -57,7 +57,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             max_kmeans_threads,
         )?;
 
-        let t = std::time::Instant::now();
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
             orig_data.clone(),
@@ -67,7 +66,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             &centroids,
             max_kmeans_threads,
         );
-        println!("Encoding took {:?}", t.elapsed());
 
         let storage = storage_builder.build();
 
