@@ -1,5 +1,5 @@
-use rayon::ThreadPool;
 use rayon::prelude::*;
+use rayon::ThreadPool;
 
 use crate::EncodingError;
 
@@ -15,7 +15,9 @@ pub fn kmeans(
         .thread_name(|idx| format!("kmeans-{idx}"))
         .num_threads(max_threads)
         .build()
-        .map_err(|e| EncodingError { description: format!("Failed PQ encoding while thread pool init: {e}") })?;
+        .map_err(|e| EncodingError {
+            description: format!("Failed PQ encoding while thread pool init: {e}"),
+        })?;
 
     // initial centroids positions are some vectors from data
     let mut centroids = data[0..centroids_count * dim].to_vec();
@@ -23,7 +25,14 @@ pub fn kmeans(
 
     for _ in 0..max_iterations {
         update_indexes(&pool, data, &mut centroid_indexes, &centroids);
-        if update_centroids(&pool, data, &centroid_indexes, &mut centroids, max_threads, accuracy) {
+        if update_centroids(
+            &pool,
+            data,
+            &centroid_indexes,
+            &mut centroids,
+            max_threads,
+            accuracy,
+        ) {
             break;
         }
     }
@@ -47,30 +56,36 @@ fn update_centroids(
     let dim = data.len() / centroid_indexes.len();
     let centroids_count = centroids.len() / dim;
 
-    let mut counters = (0..max_threads).map(|_| CentroidsCounter {
-        counter: vec![0usize; centroids_count],
-        acc: vec![0.0_f64; centroids.len()],
-    }).collect::<Vec<_>>();
+    let mut counters = (0..max_threads)
+        .map(|_| CentroidsCounter {
+            counter: vec![0usize; centroids_count],
+            acc: vec![0.0_f64; centroids.len()],
+        })
+        .collect::<Vec<_>>();
 
     pool.install(|| {
-        counters.par_iter_mut().enumerate().for_each(|(i, counter)| {
-            let chunk_size = centroid_indexes.len() / max_threads;
-            let vector_data_range = if i + 1 == max_threads {
-                chunk_size * i..centroid_indexes.len()
-            } else {
-                chunk_size * i..chunk_size * (i + 1)
-            };
+        counters
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(i, counter)| {
+                let chunk_size = centroid_indexes.len() / max_threads;
+                let vector_data_range = if i + 1 == max_threads {
+                    chunk_size * i..centroid_indexes.len()
+                } else {
+                    chunk_size * i..chunk_size * (i + 1)
+                };
 
-            for i in vector_data_range {
-                let vector_data = &data[dim * i..dim * (i + 1)];
-                let centroid_index = centroid_indexes[i] as usize;
-                counter.counter[centroid_index] += 1;
-                let centroid_data = &mut counter.acc[dim * centroid_index..dim * (centroid_index + 1)];
-                for (c, v) in centroid_data.iter_mut().zip(vector_data.iter()) {
-                    *c += *v as f64;
+                for i in vector_data_range {
+                    let vector_data = &data[dim * i..dim * (i + 1)];
+                    let centroid_index = centroid_indexes[i] as usize;
+                    counter.counter[centroid_index] += 1;
+                    let centroid_data =
+                        &mut counter.acc[dim * centroid_index..dim * (centroid_index + 1)];
+                    for (c, v) in centroid_data.iter_mut().zip(vector_data.iter()) {
+                        *c += *v as f64;
+                    }
                 }
-            }
-        })
+            })
     });
 
     let mut counter = CentroidsCounter {
@@ -88,7 +103,7 @@ fn update_centroids(
 
     // take some vector for case when there are no near points for centroid
     let mut rand_vectors = Vec::with_capacity(centroids_count);
-    for vector_data in data.chunks_exact(dim).take(centroids_count) {    
+    for vector_data in data.chunks_exact(dim).take(centroids_count) {
         rand_vectors.push(vector_data);
     }
 
@@ -120,22 +135,25 @@ fn update_indexes(
 ) {
     let dim = data.len() / centroid_indexes.len();
     pool.install(|| {
-        centroid_indexes.par_iter_mut().enumerate().for_each(|(i, c)| {
-            let vector_data = &data[dim * i..dim * (i + 1)];
-            let mut min_distance = f32::MAX;
-            let mut min_centroid_index = 0;
-            for (centroid_index, centroid_data) in centroids.chunks_exact(dim).enumerate() {
-                let distance = vector_data
-                    .iter()
-                    .zip(centroid_data.iter())
-                    .map(|(a, b)| (a - b).powi(2))
-                    .sum::<f32>();
-                if distance < min_distance {
-                    min_distance = distance;
-                    min_centroid_index = centroid_index;
+        centroid_indexes
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(i, c)| {
+                let vector_data = &data[dim * i..dim * (i + 1)];
+                let mut min_distance = f32::MAX;
+                let mut min_centroid_index = 0;
+                for (centroid_index, centroid_data) in centroids.chunks_exact(dim).enumerate() {
+                    let distance = vector_data
+                        .iter()
+                        .zip(centroid_data.iter())
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum::<f32>();
+                    if distance < min_distance {
+                        min_distance = distance;
+                        min_centroid_index = centroid_index;
+                    }
                 }
-            }
-            *c = min_centroid_index as u32;
-        })
+                *c = min_centroid_index as u32;
+            })
     });
 }
