@@ -52,7 +52,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let centroids = Self::find_centroids(
             orig_data.clone(),
             &vector_division,
-            vector_parameters.count,
+            vector_parameters,
             centroids_count,
             max_kmeans_threads,
         )?;
@@ -188,18 +188,29 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     pub fn find_centroids<'a>(
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         vector_division: &[Range<usize>],
-        count: usize,
+        vector_parameters: &VectorParameters,
         centroids_count: usize,
         max_kmeans_threads: usize,
     ) -> Result<Vec<Vec<f32>>, EncodingError> {
+        let sample_size = KMEANS_SAMPLE_SIZE.min(vector_parameters.count);
+        let mut result = vec![vec![]; centroids_count];
+
+        // if there are not enough vectors, set centroids as point positions
+        if vector_parameters.count <= centroids_count {
+            for (i, vector_data) in data.into_iter().enumerate() {
+                result[i] = vector_data.to_vec();
+            }
+            for i in vector_parameters.count..centroids_count {
+                result[i] = vec![0.0; vector_parameters.dim];
+            }
+            return Ok(result);
+        }
+
         // generate random subset of data
-        let sample_size = KMEANS_SAMPLE_SIZE.min(count);
-        let permutor = permutation_iterator::Permutor::new(count as u64);
+        let permutor = permutation_iterator::Permutor::new(vector_parameters.count as u64);
         let mut selected_vectors: Vec<usize> =
             permutor.map(|i| i as usize).take(sample_size).collect();
         selected_vectors.sort_unstable();
-
-        let mut result = vec![vec![]; centroids_count];
 
         for range in vector_division.iter() {
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
