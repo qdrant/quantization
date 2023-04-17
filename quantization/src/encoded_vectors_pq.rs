@@ -415,7 +415,8 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
     }
 
     fn encode_query(&self, query: &[f32]) -> EncodedQueryPQ {
-        let mut lut = Vec::new();
+        let lut_capacity = self.metadata.vector_division.len() * self.metadata.centroids.len();
+        let mut lut = Vec::with_capacity(lut_capacity);
         for range in &self.metadata.vector_division {
             let subquery = &query[range.clone()];
             for i in 0..self.metadata.centroids.len() {
