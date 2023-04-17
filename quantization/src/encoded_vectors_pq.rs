@@ -200,8 +200,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             for (i, vector_data) in data.into_iter().enumerate() {
                 result[i] = vector_data.to_vec();
             }
-            for i in vector_parameters.count..centroids_count {
-                result[i] = vec![0.0; vector_parameters.dim];
+            for r in result
+                .iter_mut()
+                .take(centroids_count)
+                .skip(vector_parameters.count)
+            {
+                *r = vec![0.0; vector_parameters.dim];
             }
             return Ok(result);
         }
