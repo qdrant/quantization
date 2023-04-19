@@ -62,13 +62,24 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
             // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
-            orig_data.par_bridge(),
-            Arc::new(Mutex::new(&mut storage_builder)),
+            orig_data,
+            &mut storage_builder,
             vector_parameters,
             &vector_division,
             &centroids,
             max_kmeans_threads,
         );
+
+        // #[allow(clippy::redundant_clone)]
+        // Self::encode_storage_rayon(
+        //     // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
+        //     orig_data.par_bridge(),
+        //     Arc::new(Mutex::new(&mut storage_builder)),
+        //     vector_parameters,
+        //     &vector_division,
+        //     &centroids,
+        //     max_kmeans_threads,
+        // );
 
         let storage = storage_builder.build();
 
@@ -100,61 +111,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    fn encode_storage<'a, SB>(
-        data: impl ParallelIterator<Item = &'a [f32]>,
-        storage_builder: Arc<Mutex<&mut SB>>,
-        _vector_parameters: &VectorParameters,
-        vector_division: &[Range<usize>],
-        centroids: &[Vec<f32>],
-        max_kmeans_threads: usize,
-    ) where
-        SB: EncodedStorageBuilder<TStorage> + Send,
-    {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .thread_name(|idx| format!("pq-{idx}"))
-            .num_threads(max_kmeans_threads)
-            .build()
-            .map_err(|e| EncodingError {
-                description: format!("Failed PQ encoding while thread pool init: {e}"),
-            })
-            .unwrap();
-
-        // TODO: minimize allocation, use buffer types
-
-        pool.install(|| {
-            data.map(|vector_data| {
-                let mut encoded_vector = vec![];
-                for range in vector_division.iter() {
-                    let subvector_data = &vector_data[range.clone()];
-                    let mut min_distance = f32::MAX;
-                    let mut min_centroid_index = 0;
-                    for (centroid_index, centroid) in centroids.iter().enumerate() {
-                        let centroid_data = &centroid[range.clone()];
-                        let distance = subvector_data
-                            .iter()
-                            .zip(centroid_data.iter())
-                            .map(|(a, b)| (a - b).powi(2))
-                            .sum::<f32>();
-                        if distance < min_distance {
-                            min_distance = distance;
-                            min_centroid_index = centroid_index;
-                        }
-                    }
-                    encoded_vector.push(min_centroid_index as u8);
-                }
-                encoded_vector
-            })
-            // TODO: must be ordered, check this
-            .for_each_with(storage_builder, |storage_builder, encoded_vector| {
-                storage_builder
-                    .lock()
-                    .unwrap()
-                    .push_vector_data(&encoded_vector);
-            });
-        });
-    }
-
-    fn encode_storage_sequential<'a>(
+    fn encode_storage<'a>(
         data: impl Iterator<Item = &'a [f32]>,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
@@ -238,6 +195,60 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             storage_builder.push_vector_data(&encoded);
             end_index = next(end_index);
         }
+    }
+
+    fn encode_storage_rayon<'a, SB>(
+        data: impl ParallelIterator<Item = &'a [f32]>,
+        storage_builder: Arc<Mutex<&mut SB>>,
+        _vector_parameters: &VectorParameters,
+        vector_division: &[Range<usize>],
+        centroids: &[Vec<f32>],
+        max_kmeans_threads: usize,
+    ) where
+        SB: EncodedStorageBuilder<TStorage> + Send,
+    {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .thread_name(|idx| format!("pq-{idx}"))
+            .num_threads(max_kmeans_threads)
+            .build()
+            .map_err(|e| EncodingError {
+                description: format!("Failed PQ encoding while thread pool init: {e}"),
+            })
+            .unwrap();
+
+        // TODO: minimize allocation, use buffer types
+
+        pool.install(|| {
+            data.map(|vector_data| {
+                let mut encoded_vector = vec![];
+                for range in vector_division.iter() {
+                    let subvector_data = &vector_data[range.clone()];
+                    let mut min_distance = f32::MAX;
+                    let mut min_centroid_index = 0;
+                    for (centroid_index, centroid) in centroids.iter().enumerate() {
+                        let centroid_data = &centroid[range.clone()];
+                        let distance = subvector_data
+                            .iter()
+                            .zip(centroid_data.iter())
+                            .map(|(a, b)| (a - b).powi(2))
+                            .sum::<f32>();
+                        if distance < min_distance {
+                            min_distance = distance;
+                            min_centroid_index = centroid_index;
+                        }
+                    }
+                    encoded_vector.push(min_centroid_index as u8);
+                }
+                encoded_vector
+            })
+            // TODO: must be ordered, check this
+            .for_each_with(storage_builder, |storage_builder, encoded_vector| {
+                storage_builder
+                    .lock()
+                    .unwrap()
+                    .push_vector_data(&encoded_vector);
+            });
+        });
     }
 
     pub fn find_centroids<'a>(
