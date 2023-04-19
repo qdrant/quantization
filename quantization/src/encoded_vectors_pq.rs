@@ -1,4 +1,4 @@
-use rayon::prelude::{ParallelBridge, ParallelIterator};
+use rayon::prelude::{IndexedParallelIterator, ParallelBridge, ParallelExtend, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
@@ -59,27 +59,37 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             max_kmeans_threads,
         )?;
 
-        #[allow(clippy::redundant_clone)]
-        Self::encode_storage(
-            // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
-            orig_data,
-            &mut storage_builder,
-            vector_parameters,
-            &vector_division,
-            &centroids,
-            max_kmeans_threads,
-        );
+        // let centroids_count = 256;
+        // let centroids = Self::find_centroids_rayon(
+        //     // TODO: we need an indexed parallel iterator here
+        //     orig_data.par_bridge(),
+        //     &vector_division,
+        //     vector_parameters,
+        //     centroids_count,
+        //     max_kmeans_threads,
+        // )?;
 
         // #[allow(clippy::redundant_clone)]
-        // Self::encode_storage_rayon(
+        // Self::encode_storage(
         //     // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
-        //     orig_data.par_bridge(),
-        //     Arc::new(Mutex::new(&mut storage_builder)),
+        //     orig_data,
+        //     &mut storage_builder,
         //     vector_parameters,
         //     &vector_division,
         //     &centroids,
         //     max_kmeans_threads,
         // );
+
+        #[allow(clippy::redundant_clone)]
+        Self::encode_storage_rayon(
+            // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
+            orig_data.par_bridge(),
+            Arc::new(Mutex::new(&mut storage_builder)),
+            vector_parameters,
+            &vector_division,
+            &centroids,
+            max_kmeans_threads,
+        );
 
         let storage = storage_builder.build();
 
@@ -111,6 +121,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
+    #[allow(unused)]
     fn encode_storage<'a>(
         data: impl Iterator<Item = &'a [f32]>,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
@@ -197,6 +208,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         }
     }
 
+    #[allow(unused)]
     fn encode_storage_rayon<'a, SB>(
         data: impl ParallelIterator<Item = &'a [f32]>,
         storage_builder: Arc<Mutex<&mut SB>>,
@@ -251,6 +263,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         });
     }
 
+    #[allow(unused)]
     pub fn find_centroids<'a>(
         data: impl IntoIterator<Item = &'a [f32]> + Clone,
         vector_division: &[Range<usize>],
@@ -294,6 +307,69 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     }
                 }
             }
+
+            let centroids = kmeans(
+                &data_subset,
+                centroids_count,
+                range.len(),
+                KMEANS_MAX_ITERATIONS,
+                max_kmeans_threads,
+                KMEANS_ACCURACY,
+            )?;
+            for (centroid_index, centroid_data) in centroids.chunks_exact(range.len()).enumerate() {
+                result[centroid_index].extend_from_slice(centroid_data);
+            }
+        }
+
+        Ok(result)
+    }
+
+    #[allow(unused)]
+    pub fn find_centroids_rayon<'a>(
+        data: impl IndexedParallelIterator<Item = &'a [f32]> + Clone,
+        vector_division: &[Range<usize>],
+        vector_parameters: &VectorParameters,
+        centroids_count: usize,
+        max_kmeans_threads: usize,
+    ) -> Result<Vec<Vec<f32>>, EncodingError> {
+        let sample_size = KMEANS_SAMPLE_SIZE.min(vector_parameters.count);
+        let mut result = vec![vec![]; centroids_count];
+
+        // if there are not enough vectors, set centroids as point positions
+        if vector_parameters.count <= centroids_count {
+            data.map(|vector_data| vector_data.to_vec())
+                .collect_into_vec(&mut result);
+
+            for r in result
+                .iter_mut()
+                .take(centroids_count)
+                .skip(vector_parameters.count)
+            {
+                *r = vec![0.0; vector_parameters.dim];
+            }
+            return Ok(result);
+        }
+
+        // generate random subset of data
+        let permutor = permutation_iterator::Permutor::new(vector_parameters.count as u64);
+        let mut selected_vectors: Vec<usize> =
+            permutor.map(|i| i as usize).take(sample_size).collect();
+        selected_vectors.sort_unstable();
+
+        for range in vector_division.iter() {
+            let mut data_subset = Vec::with_capacity(sample_size * range.len());
+
+            // TODO: not sure if this impl is the same as before
+            let mut par_iter = data
+                .clone()
+                .enumerate()
+                .filter(|(vector_index, _vector_data)| {
+                    // TODO: what we did before with selected_index is probably more efficient?
+                    selected_vectors.binary_search(vector_index).is_ok()
+                })
+                .take_any(sample_size)
+                .flat_map(|(_vector_index, vector_data)| &vector_data[range.clone()]);
+            data_subset.par_extend(par_iter);
 
             let centroids = kmeans(
                 &data_subset,
