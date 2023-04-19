@@ -1,3 +1,4 @@
+use rayon::prelude::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
@@ -10,6 +11,7 @@ use std::arch::x86_64::*;
 #[cfg(target_arch = "aarch64")]
 #[cfg(target_feature = "neon")]
 use std::arch::aarch64::*;
+use std::sync::{Arc, Mutex};
 
 use crate::kmeans::kmeans;
 use crate::{
@@ -40,8 +42,8 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
-        mut storage_builder: impl EncodedStorageBuilder<TStorage>,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone + Send,
+        mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
         bucket_size: usize,
         max_kmeans_threads: usize,
@@ -59,8 +61,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
-            orig_data.into_iter(),
-            &mut storage_builder,
+            // TODO: according to docs this does not preserve order, should use pariter everywhere
+            orig_data.par_bridge(),
+            Arc::new(Mutex::new(&mut storage_builder)),
             vector_parameters,
             &vector_division,
             &centroids,
@@ -97,7 +100,56 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    fn encode_storage<'a>(
+    fn encode_storage<'a, SB>(
+        data: impl ParallelIterator<Item = &'a [f32]>,
+        storage_builder: Arc<Mutex<&mut SB>>,
+        _vector_parameters: &VectorParameters,
+        vector_division: &[Range<usize>],
+        centroids: &[Vec<f32>],
+        _max_kmeans_threads: usize,
+    ) where
+        SB: EncodedStorageBuilder<TStorage> + Send,
+    {
+        // TODO: create custom rayon pool here
+
+        // let mut encoded_pool: Vec<Vec<u8>> = vec![];
+        // let mut vectors_pool: Vec<Vec<f32>> = vec![];
+        // let mut start_index = 0;
+        // let mut end_index = 0;
+
+        data.map(|vector_data| {
+            // TODO: use buffer here, borrow from shared pool?
+            let mut encoded_vector = vec![];
+            for range in vector_division.iter() {
+                let subvector_data = &vector_data[range.clone()];
+                let mut min_distance = f32::MAX;
+                let mut min_centroid_index = 0;
+                for (centroid_index, centroid) in centroids.iter().enumerate() {
+                    let centroid_data = &centroid[range.clone()];
+                    let distance = subvector_data
+                        .iter()
+                        .zip(centroid_data.iter())
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum::<f32>();
+                    if distance < min_distance {
+                        min_distance = distance;
+                        min_centroid_index = centroid_index;
+                    }
+                }
+                encoded_vector.push(min_centroid_index as u8);
+            }
+            encoded_vector
+        })
+        // TODO: this must be ordered, make sure
+        .for_each_with(storage_builder, |storage_builder, encoded_vector| {
+            storage_builder
+                .lock()
+                .unwrap()
+                .push_vector_data(&encoded_vector);
+        });
+    }
+
+    fn encode_storage_sequential<'a>(
         data: impl Iterator<Item = &'a [f32]>,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
