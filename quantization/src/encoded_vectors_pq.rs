@@ -71,7 +71,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         // #[allow(clippy::redundant_clone)]
         // Self::encode_storage(
-        //     // TODO: according to docs this does not preserve order, we can resolve this by using parallel iterator everywhere
         //     orig_data,
         //     &mut storage_builder,
         //     vector_parameters,
