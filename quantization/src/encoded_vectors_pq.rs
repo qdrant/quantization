@@ -59,7 +59,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
-            orig_data.clone(),
+            orig_data.into_iter(),
             &mut storage_builder,
             vector_parameters,
             &vector_division,
@@ -98,7 +98,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     }
 
     fn encode_storage<'a>(
-        data: impl IntoIterator<Item = &'a [f32]> + Clone,
+        data: impl Iterator<Item = &'a [f32]>,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         vector_division: &[Range<usize>],
