@@ -40,7 +40,7 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         bucket_size: usize,
@@ -98,7 +98,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     }
 
     fn encode_storage<'a>(
-        data: impl IntoIterator<Item = &'a [f32]> + Clone,
+        data: impl Iterator<Item = &'a [f32]> + Clone,
         storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         vector_division: &[Range<usize>],
@@ -113,30 +113,19 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
                 let vector_division = vector_division.to_vec();
                 let centroids = centroids.to_vec();
+                let vector_parameters = vector_parameters.clone();
                 let handle = std::thread::spawn(move || {
                     while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
                         if vector_data.is_empty() {
                             break;
                         }
-                        encoded_vector.clear();
-                        for range in vector_division.iter() {
-                            let subvector_data = &vector_data[range.clone()];
-                            let mut min_distance = f32::MAX;
-                            let mut min_centroid_index = 0;
-                            for (centroid_index, centroid) in centroids.iter().enumerate() {
-                                let centroid_data = &centroid[range.clone()];
-                                let distance = subvector_data
-                                    .iter()
-                                    .zip(centroid_data.iter())
-                                    .map(|(a, b)| (a - b).powi(2))
-                                    .sum::<f32>();
-                                if distance < min_distance {
-                                    min_distance = distance;
-                                    min_centroid_index = centroid_index;
-                                }
-                            }
-                            encoded_vector.push(min_centroid_index as u8);
-                        }
+                        encoded_vector.resize(vector_parameters.dim, 0);
+                        Self::encode_vector(
+                            &vector_data,
+                            &vector_division,
+                            &centroids,
+                            &mut encoded_vector,
+                        );
                         encoded_sender.send((vector_data, encoded_vector)).unwrap();
                     }
                 });
@@ -183,8 +172,34 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         }
     }
 
-    pub fn find_centroids<'a>(
-        data: impl IntoIterator<Item = &'a [f32]> + Clone,
+    fn encode_vector(
+        vector_data: &[f32],
+        vector_division: &[Range<usize>],
+        centroids: &[Vec<f32>],
+        encoded_vector: &mut [u8],
+    ) {
+        for (i, range) in vector_division.iter().enumerate() {
+            let subvector_data = &vector_data[range.clone()];
+            let mut min_distance = f32::MAX;
+            let mut min_centroid_index = 0;
+            for (centroid_index, centroid) in centroids.iter().enumerate() {
+                let centroid_data = &centroid[range.clone()];
+                let distance = subvector_data
+                    .iter()
+                    .zip(centroid_data.iter())
+                    .map(|(a, b)| (a - b).powi(2))
+                    .sum::<f32>();
+                if distance < min_distance {
+                    min_distance = distance;
+                    min_centroid_index = centroid_index;
+                }
+            }
+            encoded_vector[i] = min_centroid_index as u8;
+        }
+    }
+
+    fn find_centroids<'a>(
+        data: impl Iterator<Item = &'a [f32]> + Clone,
         vector_division: &[Range<usize>],
         vector_parameters: &VectorParameters,
         centroids_count: usize,
@@ -217,7 +232,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         for range in vector_division.iter() {
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
             let mut selected_index: usize = 0;
-            for (vector_index, vector_data) in data.clone().into_iter().enumerate() {
+            for (vector_index, vector_data) in data.clone().enumerate() {
                 if vector_index == selected_vectors[selected_index] {
                     data_subset.extend_from_slice(&vector_data[range.clone()]);
                     selected_index += 1;
@@ -244,8 +259,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     }
 
     #[cfg(feature = "dump_image")]
-    pub fn dump_to_image<'a>(
-        data: impl IntoIterator<Item = &'a [f32]> + Clone,
+    fn dump_to_image<'a>(
+        data: impl Iterator<Item = &'a [f32]> + Clone,
         storage: &TStorage,
         centroids: &[Vec<f32>],
         vector_division: &[Range<usize>],
