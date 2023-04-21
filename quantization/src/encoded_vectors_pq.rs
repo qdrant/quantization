@@ -13,6 +13,7 @@ use std::arch::aarch64::*;
 use std::sync::{Arc, Mutex};
 
 use crate::kmeans::kmeans;
+use crate::ConditionalVariable;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{EncodedVectors, VectorParameters},
@@ -61,8 +62,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
             orig_data.clone(),
-            Arc::new(Mutex::new(&mut storage_builder)),
-            vector_parameters,
+            &mut storage_builder,
             &vector_division,
             &centroids,
             max_kmeans_threads,
@@ -98,99 +98,70 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    fn encode_storage<'a>(
-        data: impl Iterator<Item = &'a [f32]> + Send,
-        storage_builder: Arc<Mutex<&mut (impl EncodedStorageBuilder<TStorage> + Send)>>,
-        vector_parameters: &VectorParameters,
-        vector_division: &[Range<usize>],
-        centroids: &[Vec<f32>],
+    fn encode_storage<'a: 'b, 'b>(
+        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
+        vector_division: &'b [Range<usize>],
+        centroids: &'b [Vec<f32>],
         max_threads: usize,
     ) -> Result<(), EncodingError> {
-        struct EncodingThread {
-            vector_sender: std::sync::mpsc::Sender<(Vec<f32>, Vec<u8>)>,
-            encoded_receiver: std::sync::mpsc::Receiver<(Vec<f32>, Vec<u8>)>,
-        }
-        
-        let pool = rayon::ThreadPoolBuilder::new()
+        rayon::ThreadPoolBuilder::new()
             .thread_name(|idx| format!("pq-encoding-{idx}"))
-            .num_threads(max_threads + 1)
+            .num_threads(max_threads)
             .build()
             .map_err(|e| EncodingError {
                 description: format!("Failed PQ encoding while thread pool init: {e}"),
-            })?;
+            })?
+            .scope(move |s| {
+                Self::encode_storage_rayon(
+                    s,
+                    data,
+                    storage_builder,
+                    vector_division,
+                    centroids,
+                    max_threads,
+                )
+            })
+    }
 
-        pool.install(move || {
-            rayon::scope(|s| {
-                let mut threads = Vec::new();
-                for _ in 0..max_threads {
-                    let (vector_sender, vector_receiver) =
-                        std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-                    let (encoded_sender, encoded_receiver) =
-                        std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-                    let vector_division = vector_division.to_vec();
-                    let centroids = centroids.to_vec();
-                    let vector_parameters = vector_parameters.clone();
-                    threads.push(EncodingThread {
-                        vector_sender,
-                        encoded_receiver,
-                    });
+    fn encode_storage_rayon<'a: 'b, 'b>(
+        scope: &rayon::Scope<'b>,
+        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
+        vector_division: &'b [Range<usize>],
+        centroids: &'b [Vec<f32>],
+        max_threads: usize,
+    ) -> Result<(), EncodingError> {
+        let storage_builder = Arc::new(Mutex::new(storage_builder));
+        let condvars = (0..max_threads)
+            .map(|_| Arc::new(ConditionalVariable::default()))
+            .collect::<Vec<_>>();
+        condvars[0].notify(); // Allow first thread to use storage
 
-                    s.spawn(move |_| {
-                        while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
-                            if vector_data.is_empty() {
-                                break;
-                            }
-                            encoded_vector.resize(vector_parameters.dim, 0);
-                            Self::encode_vector(
-                                &vector_data,
-                                &vector_division,
-                                &centroids,
-                                &mut encoded_vector,
-                            );
-                            encoded_sender.send((vector_data, encoded_vector)).unwrap();
-                        }
-                    });
-                }
+        for thread_index in 0..max_threads {
+            let data = data.clone().skip(thread_index);
+            let storage_builder = storage_builder.clone();
+            let condvar = condvars[thread_index].clone();
+            let next_condvar = condvars[(thread_index + 1) % max_threads].clone();
 
-                let mut encoded_pool: Vec<Vec<u8>> = vec![];
-                let mut vectors_pool: Vec<Vec<f32>> = vec![];
-                let mut start_index = 0;
-                let mut end_index = 0;
-                let next = |i: usize| -> usize { (i + 1) % max_threads };
-                let mut busy_threads_count = 0;
-                for vector_data in data {
-                    if busy_threads_count > 0 && start_index == end_index {
-                        let (vector, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
-                        storage_builder.lock().unwrap().push_vector_data(&encoded);
-                        encoded_pool.push(encoded);
-                        vectors_pool.push(vector);
-                        end_index = next(end_index);
-                        busy_threads_count -= 1;
-                    }
-
-                    let encoded = encoded_pool.pop().unwrap_or_default();
-                    let mut v = vectors_pool
-                        .pop()
-                        .unwrap_or_else(|| vec![0.0; vector_parameters.dim]);
-                    v.copy_from_slice(vector_data);
-                    threads[start_index]
-                        .vector_sender
-                        .send((v, encoded))
-                        .unwrap();
-                    start_index = next(start_index);
-                    busy_threads_count += 1;
-                }
-                for _ in 0..busy_threads_count {
-                    let (_, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
-                    storage_builder.lock().unwrap().push_vector_data(&encoded);
-                    end_index = next(end_index);
-                }
-                for t in threads {
-                    t.vector_sender.send((vec![], vec![])).unwrap();
+            scope.spawn(move |_| {
+                let mut encoded_vector = Vec::new();
+                for vector in data.step_by(max_threads) {
+                    encoded_vector.clear();
+                    Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
+                    // wait for permission from prev thread to use storage
+                    condvar.wait();
+                    // push encoded vector to storage
+                    storage_builder
+                        .lock()
+                        .unwrap()
+                        .push_vector_data(&encoded_vector);
+                    // Notify next thread to use storage
+                    next_condvar.notify();
                 }
             });
-            Ok(())
-        })
+        }
+        Ok(())
     }
 
     fn encode_vector(
