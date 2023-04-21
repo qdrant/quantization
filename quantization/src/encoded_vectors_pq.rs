@@ -113,13 +113,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
                 let vector_division = vector_division.to_vec();
                 let centroids = centroids.to_vec();
-                let vector_parameters = vector_parameters.clone();
                 let handle = std::thread::spawn(move || {
                     while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
                         if vector_data.is_empty() {
                             break;
                         }
-                        encoded_vector.resize(vector_parameters.dim, 0);
+                        encoded_vector.clear();
                         Self::encode_vector(
                             &vector_data,
                             &vector_division,
@@ -176,9 +175,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_data: &[f32],
         vector_division: &[Range<usize>],
         centroids: &[Vec<f32>],
-        encoded_vector: &mut [u8],
+        encoded_vector: &mut Vec<u8>,
     ) {
-        for (i, range) in vector_division.iter().enumerate() {
+        for range in vector_division {
             let subvector_data = &vector_data[range.clone()];
             let mut min_distance = f32::MAX;
             let mut min_centroid_index = 0;
@@ -194,7 +193,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     min_centroid_index = centroid_index;
                 }
             }
-            encoded_vector[i] = min_centroid_index as u8;
+            encoded_vector.push(min_centroid_index as u8);
         }
     }
 
