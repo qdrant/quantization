@@ -159,8 +159,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         condvars[0].notify(); // Allow first thread to use storage
 
         for thread_index in 0..max_threads {
-            // Thread process vectors `N` that `N % thread_index == 0`.
-            // 
+            // Thread process vectors `N` that `(N + thread_index) % max_threads == 0`.
             let data = data.clone().skip(thread_index);
             let storage_builder = storage_builder.clone();
             let condvar = condvars[thread_index].clone();
