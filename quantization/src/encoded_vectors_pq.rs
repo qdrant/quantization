@@ -284,7 +284,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 *pixel = image::Rgb([255u8, 255u8, 255u8]);
             }
 
-            for (i, vector_data) in data.clone().into_iter().enumerate() {
+            for (i, vector_data) in data.clone().enumerate() {
                 let subvector_data = &vector_data[range.clone()];
                 let centroid_index =
                     storage.get_vector_data(i, vector_division.len())[range_i] as usize;
