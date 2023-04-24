@@ -98,6 +98,18 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
+    /// Encode whole storage
+    /// 
+    /// # Arguments
+    /// * `data` - Original vector data iterator
+    /// * `storage_builder` - Builder of encoded data container
+    /// * `vector_division` - Division of original vector into chunks
+    /// * `centroids` - Centroid positions (flattened by chunks; for similarity to vector data format)
+    /// * `max_threads` - Max allowed threads for encoding process
+    ///
+    /// # Lifetimes
+    /// 'a is lifetime of vector in vector storage
+    /// 'b is lifetime of parent scope
     fn encode_storage<'a: 'b, 'b>(
         data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
         storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
@@ -107,7 +119,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     ) -> Result<(), EncodingError> {
         rayon::ThreadPoolBuilder::new()
             .thread_name(|idx| format!("pq-encoding-{idx}"))
-            .num_threads(max_threads)
+            .num_threads(std::cmp::max(1, max_threads))
             .build()
             .map_err(|e| EncodingError {
                 description: format!("Failed PQ encoding while thread pool init: {e}"),
@@ -124,6 +136,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             })
     }
 
+    /// Encode whole storage inside rayon context
+    /// This function should be called inside `rayon::scope`
     fn encode_storage_rayon<'a: 'b, 'b>(
         scope: &rayon::Scope<'b>,
         data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
@@ -133,12 +147,20 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         max_threads: usize,
     ) -> Result<(), EncodingError> {
         let storage_builder = Arc::new(Mutex::new(storage_builder));
+
+        // Synchronization between threads. Use conditional variable for
+        // each thread. Each condvar is blocked instead of first.
+        // While encoding, thread `N` after `storage_builder` usage blocks themself and 
+        // unblock thread `N+1`.
+        // In summary, access to `storage_builder` is ordered by `thread_index` below.
         let condvars = (0..max_threads)
             .map(|_| Arc::new(ConditionalVariable::default()))
             .collect::<Vec<_>>();
         condvars[0].notify(); // Allow first thread to use storage
 
         for thread_index in 0..max_threads {
+            // Thread process vectors `N` that `N % thread_index == 0`.
+            // 
             let data = data.clone().skip(thread_index);
             let storage_builder = storage_builder.clone();
             let condvar = condvars[thread_index].clone();
@@ -164,6 +186,15 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         Ok(())
     }
 
+    /// Encode single vector from `&[f32]` into `&[u8]`.
+    /// This method divides `vector_data` into chunks, for each chunk 
+    /// finds nearest centroid and replace whole chunk by nearest centroid index.
+    /// 
+    /// # Arguments
+    /// * `vector_data` - Original vector data
+    /// * `vector_division` - Division of original vector into chunks
+    /// * `centroids` - Centroid positions (flattened by chunks; for similarity to vector data format)
+    /// * `encoded_vector` - Encoded result as a preallocated vector
     fn encode_vector(
         vector_data: &[f32],
         vector_division: &[Range<usize>],
@@ -175,7 +206,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             let mut min_distance = f32::MAX;
             let mut min_centroid_index = 0;
             for (centroid_index, centroid) in centroids.iter().enumerate() {
+                // because centroids are flattened by chunks, take centroid position using `range`
                 let centroid_data = &centroid[range.clone()];
+                // by product quantization algorithm use euclid metric for any similarity function
                 let distance = subvector_data
                     .iter()
                     .zip(centroid_data.iter())
@@ -186,6 +219,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     min_centroid_index = centroid_index;
                 }
             }
+            // encoding, replace whole chunk `range` by one `u8` index of nearest centroid
             encoded_vector.push(min_centroid_index as u8);
         }
     }
