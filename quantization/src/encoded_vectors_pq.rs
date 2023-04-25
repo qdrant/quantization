@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
+use std::iter::repeat_with;
 use std::ops::Range;
 use std::path::Path;
 
@@ -124,7 +125,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .map_err(|e| EncodingError {
                 description: format!("Failed PQ encoding while thread pool init: {e}"),
             })?
-            .scope(move |s| {
+            .scope(|s| {
                 Self::encode_storage_rayon(
                     s,
                     data,
@@ -153,9 +154,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         // While encoding, thread `N` after `storage_builder` usage blocks themself and
         // unblock thread `N+1`.
         // In summary, access to `storage_builder` is ordered by `thread_index` below.
-        let mut condvars = (0..max_threads)
-            .map(|_| ConditionalVariable::default())
-            .collect::<Vec<_>>();
+        let mut condvars: Vec<ConditionalVariable> =
+            repeat_with(Default::default).take(max_threads).collect();
         condvars[0].notify(); // Allow first thread to use storage
 
         for thread_index in 0..max_threads {
@@ -215,9 +215,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 // by product quantization algorithm use euclid metric for any similarity function
                 let distance = subvector_data
                     .iter()
-                    .zip(centroid_data.iter())
+                    .zip(centroid_data)
                     .map(|(a, b)| (a - b).powi(2))
-                    .sum::<f32>();
+                    .sum();
                 if distance < min_distance {
                     min_distance = distance;
                     min_centroid_index = centroid_index;
