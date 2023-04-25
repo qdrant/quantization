@@ -166,9 +166,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             let next_condvar = condvars[(thread_index + 1) % max_threads].clone();
 
             scope.spawn(move |_| {
-                let mut encoded_vector = Vec::new();
+                let mut encoded_vector = Vec::with_capacity(vector_division.len());
                 for vector in data.step_by(max_threads) {
-                    encoded_vector.clear();
                     Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
                     // wait for permission from prev thread to use storage
                     let is_disconnected = condvar.wait();
@@ -205,6 +204,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         centroids: &[Vec<f32>],
         encoded_vector: &mut Vec<u8>,
     ) {
+        encoded_vector.clear();
         for range in vector_division {
             let subvector_data = &vector_data[range.clone()];
             let mut min_distance = f32::MAX;
