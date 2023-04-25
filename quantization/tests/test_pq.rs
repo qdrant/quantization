@@ -205,6 +205,10 @@ mod tests {
         }
     }
 
+    // ignore this test because it requires long time
+    // this test should be started separately of with `--test-threads=1` flag
+    // because `num_threads::num_threads()` is used to check that all encode threads finished
+    #[ignore]
     #[test]
     fn test_encode_panic() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -228,6 +232,7 @@ mod tests {
                             panic!("test panic")
                         }
                         if cnt > panic_index {
+                            // after panic add start sleeping to simulate large amount of data
                             std::thread::sleep(Duration::from_micros(100));
                         }
                         v.as_slice()
@@ -256,6 +261,8 @@ mod tests {
 
             // check that all threads are finished
             assert!(num_threads::num_threads() == start_num_threads);
+
+            println!("Finished iteration {i}");
         }
     }
 }
