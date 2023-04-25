@@ -99,7 +99,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     }
 
     /// Encode whole storage
-    /// 
+    ///
     /// # Arguments
     /// * `data` - Original vector data iterator
     /// * `storage_builder` - Builder of encoded data container
@@ -150,11 +150,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         // Synchronization between threads. Use conditional variable for
         // each thread. Each condvar is blocked instead of first.
-        // While encoding, thread `N` after `storage_builder` usage blocks themself and 
+        // While encoding, thread `N` after `storage_builder` usage blocks themself and
         // unblock thread `N+1`.
         // In summary, access to `storage_builder` is ordered by `thread_index` below.
-        let condvars = (0..max_threads)
-            .map(|_| Arc::new(ConditionalVariable::default()))
+        let mut condvars = (0..max_threads)
+            .map(|_| ConditionalVariable::default())
             .collect::<Vec<_>>();
         condvars[0].notify(); // Allow first thread to use storage
 
@@ -171,7 +171,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     encoded_vector.clear();
                     Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
                     // wait for permission from prev thread to use storage
-                    condvar.wait();
+                    let is_disconnected = condvar.wait();
                     // push encoded vector to storage
                     storage_builder
                         .lock()
@@ -179,16 +179,21 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                         .push_vector_data(&encoded_vector);
                     // Notify next thread to use storage
                     next_condvar.notify();
+                    if is_disconnected {
+                        return;
+                    }
                 }
             });
         }
+        // free condvars to allow threads to exit when panicking
+        condvars.clear();
         Ok(())
     }
 
     /// Encode single vector from `&[f32]` into `&[u8]`.
-    /// This method divides `vector_data` into chunks, for each chunk 
+    /// This method divides `vector_data` into chunks, for each chunk
     /// finds nearest centroid and replace whole chunk by nearest centroid index.
-    /// 
+    ///
     /// # Arguments
     /// * `vector_data` - Original vector data
     /// * `vector_division` - Division of original vector into chunks

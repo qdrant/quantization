@@ -6,6 +6,7 @@ pub mod kmeans;
 pub mod quantile;
 
 use std::fmt::Display;
+use std::sync::Arc;
 use std::sync::Condvar;
 use std::sync::Mutex;
 
@@ -33,24 +34,38 @@ impl Display for EncodingError {
     }
 }
 
+#[derive(Default, PartialEq, Clone, Copy)]
+enum ConditionalVariableState {
+    #[default]
+    Waiting,
+    Notified,
+}
+
 // ConditionalVariable is a wrapper around a mutex and a condvar
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ConditionalVariable {
-    mutex: Mutex<bool>,
-    condvar: Condvar,
+    mutex: Arc<Mutex<ConditionalVariableState>>,
+    condvar: Arc<Condvar>,
 }
 
 impl ConditionalVariable {
-    pub fn wait(&self) {
+    pub fn wait(&self) -> bool {
         let mut guard = self.mutex.lock().unwrap();
-        while !*guard {
+        while *guard == ConditionalVariableState::Waiting && Arc::strong_count(&self.mutex) > 1 {
             guard = self.condvar.wait(guard).unwrap();
         }
-        *guard = false;
+        *guard = ConditionalVariableState::Waiting;
+        Arc::strong_count(&self.mutex) == 1
     }
 
     pub fn notify(&self) {
-        *self.mutex.lock().unwrap() = true;
-        self.condvar.notify_one();
+        *self.mutex.lock().unwrap() = ConditionalVariableState::Notified;
+        self.condvar.notify_all();
+    }
+}
+
+impl Drop for ConditionalVariable {
+    fn drop(&mut self) {
+        self.condvar.notify_all();
     }
 }
