@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::prelude::*;
+use std::iter::repeat_with;
 use std::ops::Range;
 use std::path::Path;
 
@@ -10,8 +11,10 @@ use std::arch::x86_64::*;
 #[cfg(target_arch = "aarch64")]
 #[cfg(target_feature = "neon")]
 use std::arch::aarch64::*;
+use std::sync::{Arc, Mutex};
 
 use crate::kmeans::kmeans;
+use crate::ConditionalVariable;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{EncodedVectors, VectorParameters},
@@ -40,8 +43,8 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
-        mut storage_builder: impl EncodedStorageBuilder<TStorage>,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone + Send,
+        mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
         bucket_size: usize,
         max_kmeans_threads: usize,
@@ -61,11 +64,10 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         Self::encode_storage(
             orig_data.clone(),
             &mut storage_builder,
-            vector_parameters,
             &vector_division,
             &centroids,
             max_kmeans_threads,
-        );
+        )?;
 
         let storage = storage_builder.build();
 
@@ -97,102 +99,131 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect::<Vec<_>>()
     }
 
-    fn encode_storage<'a>(
-        data: impl Iterator<Item = &'a [f32]> + Clone,
-        storage_builder: &mut impl EncodedStorageBuilder<TStorage>,
-        vector_parameters: &VectorParameters,
-        vector_division: &[Range<usize>],
-        centroids: &[Vec<f32>],
-        max_kmeans_threads: usize,
-    ) {
-        let threads = (0..max_kmeans_threads)
-            .map(|_| {
-                let (vector_sender, vector_receiver) =
-                    std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-                let (encoded_sender, encoded_receiver) =
-                    std::sync::mpsc::channel::<(Vec<f32>, Vec<u8>)>();
-                let vector_division = vector_division.to_vec();
-                let centroids = centroids.to_vec();
-                let handle = std::thread::spawn(move || {
-                    while let Ok((vector_data, mut encoded_vector)) = vector_receiver.recv() {
-                        if vector_data.is_empty() {
-                            break;
-                        }
-                        encoded_vector.clear();
-                        Self::encode_vector(
-                            &vector_data,
-                            &vector_division,
-                            &centroids,
-                            &mut encoded_vector,
-                        );
-                        encoded_sender.send((vector_data, encoded_vector)).unwrap();
-                    }
-                });
-                EncodingThread {
-                    handle: Some(handle),
-                    vector_sender,
-                    encoded_receiver,
-                }
+    /// Encode whole storage
+    ///
+    /// # Arguments
+    /// * `data` - Original vector data iterator
+    /// * `storage_builder` - Builder of encoded data container
+    /// * `vector_division` - Division of original vector into chunks
+    /// * `centroids` - Centroid positions (flattened by chunks; for similarity to vector data format)
+    /// * `max_threads` - Max allowed threads for encoding process
+    ///
+    /// # Lifetimes
+    /// 'a is lifetime of vector in vector storage
+    /// 'b is lifetime of parent scope
+    fn encode_storage<'a: 'b, 'b>(
+        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
+        vector_division: &'b [Range<usize>],
+        centroids: &'b [Vec<f32>],
+        max_threads: usize,
+    ) -> Result<(), EncodingError> {
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|idx| format!("pq-encoding-{idx}"))
+            .num_threads(std::cmp::max(1, max_threads))
+            .build()
+            .map_err(|e| EncodingError {
+                description: format!("Failed PQ encoding while thread pool init: {e}"),
+            })?
+            .scope(|s| {
+                Self::encode_storage_rayon(
+                    s,
+                    data,
+                    storage_builder,
+                    vector_division,
+                    centroids,
+                    max_threads,
+                )
             })
-            .collect::<Vec<_>>();
-
-        let mut encoded_pool: Vec<Vec<u8>> = vec![];
-        let mut vectors_pool: Vec<Vec<f32>> = vec![];
-        let mut start_index = 0;
-        let mut end_index = 0;
-        let next = |i: usize| -> usize { (i + 1) % max_kmeans_threads };
-        let mut busy_threads_count = 0;
-        for vector_data in data.into_iter() {
-            if busy_threads_count > 0 && start_index == end_index {
-                let (vector, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
-                storage_builder.push_vector_data(&encoded);
-                encoded_pool.push(encoded);
-                vectors_pool.push(vector);
-                end_index = next(end_index);
-                busy_threads_count -= 1;
-            }
-
-            let encoded = encoded_pool.pop().unwrap_or_default();
-            let mut v = vectors_pool
-                .pop()
-                .unwrap_or_else(|| vec![0.0; vector_parameters.dim]);
-            v.copy_from_slice(vector_data);
-            threads[start_index]
-                .vector_sender
-                .send((v, encoded))
-                .unwrap();
-            start_index = next(start_index);
-            busy_threads_count += 1;
-        }
-        for _ in 0..busy_threads_count {
-            let (_, encoded) = threads[end_index].encoded_receiver.recv().unwrap();
-            storage_builder.push_vector_data(&encoded);
-            end_index = next(end_index);
-        }
     }
 
+    /// Encode whole storage inside rayon context
+    /// This function should be called inside `rayon::scope`
+    fn encode_storage_rayon<'a: 'b, 'b>(
+        scope: &rayon::Scope<'b>,
+        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
+        vector_division: &'b [Range<usize>],
+        centroids: &'b [Vec<f32>],
+        max_threads: usize,
+    ) -> Result<(), EncodingError> {
+        let storage_builder = Arc::new(Mutex::new(storage_builder));
+
+        // Synchronization between threads. Use conditional variable for
+        // each thread. Each condvar is blocked instead of first.
+        // While encoding, thread `N` after `storage_builder` usage blocks themself and
+        // unblock thread `N+1`.
+        // In summary, access to `storage_builder` is ordered by `thread_index` below.
+        let mut condvars: Vec<ConditionalVariable> =
+            repeat_with(Default::default).take(max_threads).collect();
+        condvars[0].notify(); // Allow first thread to use storage
+
+        for thread_index in 0..max_threads {
+            // Thread process vectors `N` that `(N + thread_index) % max_threads == 0`.
+            let data = data.clone().skip(thread_index);
+            let storage_builder = storage_builder.clone();
+            let condvar = condvars[thread_index].clone();
+            let next_condvar = condvars[(thread_index + 1) % max_threads].clone();
+
+            scope.spawn(move |_| {
+                let mut encoded_vector = Vec::with_capacity(vector_division.len());
+                for vector in data.step_by(max_threads) {
+                    Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
+                    // wait for permission from prev thread to use storage
+                    let is_disconnected = condvar.wait();
+                    // push encoded vector to storage
+                    storage_builder
+                        .lock()
+                        .unwrap()
+                        .push_vector_data(&encoded_vector);
+                    // Notify next thread to use storage
+                    next_condvar.notify();
+                    if is_disconnected {
+                        return;
+                    }
+                }
+            });
+        }
+        // free condvars to allow threads to exit when panicking
+        condvars.clear();
+        Ok(())
+    }
+
+    /// Encode single vector from `&[f32]` into `&[u8]`.
+    /// This method divides `vector_data` into chunks, for each chunk
+    /// finds nearest centroid and replace whole chunk by nearest centroid index.
+    ///
+    /// # Arguments
+    /// * `vector_data` - Original vector data
+    /// * `vector_division` - Division of original vector into chunks
+    /// * `centroids` - Centroid positions (flattened by chunks; for similarity to vector data format)
+    /// * `encoded_vector` - Encoded result as a preallocated vector
     fn encode_vector(
         vector_data: &[f32],
         vector_division: &[Range<usize>],
         centroids: &[Vec<f32>],
         encoded_vector: &mut Vec<u8>,
     ) {
+        encoded_vector.clear();
         for range in vector_division {
             let subvector_data = &vector_data[range.clone()];
             let mut min_distance = f32::MAX;
             let mut min_centroid_index = 0;
             for (centroid_index, centroid) in centroids.iter().enumerate() {
+                // because centroids are flattened by chunks, take centroid position using `range`
                 let centroid_data = &centroid[range.clone()];
+                // by product quantization algorithm use euclid metric for any similarity function
                 let distance = subvector_data
                     .iter()
-                    .zip(centroid_data.iter())
+                    .zip(centroid_data)
                     .map(|(a, b)| (a - b).powi(2))
-                    .sum::<f32>();
+                    .sum();
                 if distance < min_distance {
                     min_distance = distance;
                     min_centroid_index = centroid_index;
                 }
             }
+            // encoding, replace whole chunk `range` by one `u8` index of nearest centroid
             encoded_vector.push(min_centroid_index as u8);
         }
     }
@@ -508,22 +539,6 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
             -distance
         } else {
             distance
-        }
-    }
-}
-
-struct EncodingThread {
-    handle: Option<std::thread::JoinHandle<()>>,
-    vector_sender: std::sync::mpsc::Sender<(Vec<f32>, Vec<u8>)>,
-    encoded_receiver: std::sync::mpsc::Receiver<(Vec<f32>, Vec<u8>)>,
-}
-
-impl Drop for EncodingThread {
-    fn drop(&mut self) {
-        if self.vector_sender.send((vec![], vec![])).is_ok() {
-            if let Some(handle) = self.handle.take() {
-                handle.join().unwrap();
-            }
         }
     }
 }

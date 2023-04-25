@@ -3,6 +3,8 @@ mod metrics;
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::atomic::AtomicUsize, time::Duration};
+
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
         encoded_vectors_pq::EncodedVectorsPQ,
@@ -200,6 +202,67 @@ mod tests {
             let score = encoded.score_internal(0, i as u32);
             let orginal_score = -dot_similarity(&vector_data[0], &vector_data[i]);
             assert!((score - orginal_score).abs() < ERROR);
+        }
+    }
+
+    // ignore this test because it requires long time
+    // this test should be started separately of with `--test-threads=1` flag
+    // because `num_threads::num_threads()` is used to check that all encode threads finished
+    #[ignore]
+    #[test]
+    fn test_encode_panic() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        for _ in 0..VECTORS_COUNT {
+            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
+            vector_data.push(vector);
+        }
+
+        for i in 0.. {
+            let counter = AtomicUsize::new(0);
+            let panic_index = i * VECTORS_COUNT / 3;
+
+            let start_num_threads = num_threads::num_threads();
+            let vector_data = vector_data.clone();
+            let result = std::thread::spawn(move || {
+                EncodedVectorsPQ::encode(
+                    vector_data.iter().map(|v| {
+                        let cnt = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        if cnt == panic_index {
+                            panic!("test panic")
+                        }
+                        if cnt > panic_index {
+                            // after panic add start sleeping to simulate large amount of data
+                            std::thread::sleep(Duration::from_micros(100));
+                        }
+                        v.as_slice()
+                    }),
+                    Vec::<u8>::new(),
+                    &VectorParameters {
+                        dim: VECTOR_DIM,
+                        count: VECTORS_COUNT,
+                        distance_type: DistanceType::Dot,
+                        invert: false,
+                    },
+                    1,
+                    5,
+                )
+                .unwrap()
+            })
+            .join();
+
+            if result.is_ok() {
+                // no panic, panic_index is too big, all panic cases are handled
+                return;
+            }
+
+            // some time required to finish encoding threads
+            std::thread::sleep(Duration::from_millis(50));
+
+            // check that all threads are finished
+            assert!(num_threads::num_threads() == start_num_threads);
+
+            println!("Finished iteration {i}");
         }
     }
 }
