@@ -42,7 +42,7 @@ pub struct Args {
     pub quantile: Option<f32>,
 
     #[clap(long, default_value_t = 1)]
-    pub bucket_size: usize,
+    pub chunk_size: usize,
 }
 
 const DATASETS: [(&str, &str, DistanceType); 11] = [
@@ -137,7 +137,7 @@ fn main() {
                     data_iter,
                     Vec::<u8>::new(),
                     &vector_parameters,
-                    args.bucket_size,
+                    args.chunk_size,
                     num_cpus::get(),
                 )
                 .unwrap();

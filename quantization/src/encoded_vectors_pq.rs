@@ -30,6 +30,9 @@ pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
     metadata: Metadata,
 }
 
+/// PQ lookup table
+/// Lookup table is a distance from each query chunck to 
+/// each centroid related to this chunk
 pub struct EncodedQueryPQ {
     lut: Vec<f32>,
 }
@@ -48,17 +51,17 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `data` - iterator over original vector data
     /// * `storage_builder` - encoding result storage builder
     /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
-    /// * `bucket_size` - Max size of f32 bucket that replaced by centroid index (in original vector dimension)
+    /// * `chunk_size` - Max size of f32 chunk that replaced by centroid index (in original vector dimension)
     /// * `max_threads` - Max allowed threads for kmeans and encodind process
     pub fn encode<'a>(
         data: impl Iterator<Item = &'a [f32]> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
-        bucket_size: usize,
+        chunk_size: usize,
         max_kmeans_threads: usize,
     ) -> Result<Self, EncodingError> {
-        // first, divide vector into buckets
-        let vector_division = Self::get_vector_division(vector_parameters.dim, bucket_size);
+        // first, divide vector into chunks
+        let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
 
         // then, find flattened centroid positions
         let centroids_count = 256;
@@ -97,16 +100,16 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
     pub fn get_quantized_vector_size(
         vector_parameters: &VectorParameters,
-        bucket_size: usize,
+        chunk_size: usize,
     ) -> usize {
-        let vector_division = Self::get_vector_division(vector_parameters.dim, bucket_size);
+        let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
         vector_division.len()
     }
 
-    fn get_vector_division(dim: usize, bucket_size: usize) -> Vec<Range<usize>> {
+    fn get_vector_division(dim: usize, chunk_size: usize) -> Vec<Range<usize>> {
         (0..dim)
-            .step_by(bucket_size)
-            .map(|i| i..std::cmp::min(i + bucket_size, dim))
+            .step_by(chunk_size)
+            .map(|i| i..std::cmp::min(i + chunk_size, dim))
             .collect::<Vec<_>>()
     }
 
@@ -239,6 +242,16 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         }
     }
 
+    /// Encode single vector from `&[f32]` into `&[u8]`.
+    /// This method divides `vector_data` into chunks, for each chunk
+    /// finds nearest centroid and replace whole chunk by nearest centroid index.
+    ///
+    /// # Arguments
+    /// * `data` - Original vector data
+    /// * `vector_division` - Division of original vector into chunks
+    /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
+    /// * `centroids_count` - Count of centroids for each chunk
+    /// * `max_kmeans_threads` - Max allowed threads for kmeans process
     fn find_centroids<'a>(
         data: impl Iterator<Item = &'a [f32]> + Clone,
         vector_division: &[Range<usize>],
@@ -265,13 +278,15 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             return Ok(result);
         }
 
-        // generate random subset of data
+        // find random subset of data as random non-intersected indexes
         let permutor = permutation_iterator::Permutor::new(vector_parameters.count as u64);
         let mut selected_vectors: Vec<usize> =
             permutor.map(|i| i as usize).take(sample_size).collect();
         selected_vectors.sort_unstable();
 
+        // find centroids for each chunk
         for range in vector_division.iter() {
+            // take data subset using indexes from 
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
             let mut selected_index: usize = 0;
             for (vector_index, vector_data) in data.clone().enumerate() {
@@ -292,6 +307,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 max_kmeans_threads,
                 KMEANS_ACCURACY,
             )?;
+
+            // push found chunk centroids into result
             for (centroid_index, centroid_data) in centroids.chunks_exact(range.len()).enumerate() {
                 result[centroid_index].extend_from_slice(centroid_data);
             }
@@ -526,6 +543,9 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
         self.score_point_simple(query, i)
     }
 
+    /// Score two points inside endoded data by their indexes
+    /// To find score, this method decode both encoded vectors.
+    /// Decocing in PQ is a replacing centroid index by centroid position
     fn score_internal(&self, i: u32, j: u32) -> f32 {
         let centroids_i = self
             .encoded_vectors
@@ -539,6 +559,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
             .enumerate()
             .map(|(range_index, (&c_i, &c_j))| {
                 let range = &self.metadata.vector_division[range_index];
+                // get centroid positions and calculate distance as distance between centroids
                 let data_i = &self.metadata.centroids[c_i as usize][range.clone()];
                 let data_j = &self.metadata.centroids[c_j as usize][range.clone()];
                 self.metadata
