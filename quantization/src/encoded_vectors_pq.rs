@@ -42,27 +42,38 @@ struct Metadata {
 }
 
 impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
+    /// Encode vector data using product quantization.
+    /// 
+    /// # Arguments
+    /// * `data` - iterator over original vector data
+    /// * `storage_builder` - encoding result storage builder
+    /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
+    /// * `bucket_size` - Max size of f32 bucket that replaced by centroid index (in original vector dimension)
+    /// * `max_threads` - Max allowed threads for kmeans and encodind process
     pub fn encode<'a>(
-        orig_data: impl Iterator<Item = &'a [f32]> + Clone + Send,
+        data: impl Iterator<Item = &'a [f32]> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
         bucket_size: usize,
         max_kmeans_threads: usize,
     ) -> Result<Self, EncodingError> {
+        // first, divide vector into buckets
         let vector_division = Self::get_vector_division(vector_parameters.dim, bucket_size);
 
+        // then, find flattened centroid positions
         let centroids_count = 256;
         let centroids = Self::find_centroids(
-            orig_data.clone(),
+            data.clone(),
             &vector_division,
             vector_parameters,
             centroids_count,
             max_kmeans_threads,
         )?;
 
+        // finally, encode data
         #[allow(clippy::redundant_clone)]
         Self::encode_storage(
-            orig_data.clone(),
+            data.clone(),
             &mut storage_builder,
             &vector_division,
             &centroids,
@@ -248,6 +259,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 .take(centroids_count)
                 .skip(vector_parameters.count)
             {
+                // fill empty centroids just with zeros
                 *r = vec![0.0; vector_parameters.dim];
             }
             return Ok(result);
