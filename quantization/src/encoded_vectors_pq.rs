@@ -31,7 +31,7 @@ pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
 }
 
 /// PQ lookup table
-/// Lookup table is a distance from each query chunck to 
+/// Lookup table is a distance from each query chunck to
 /// each centroid related to this chunk
 pub struct EncodedQueryPQ {
     lut: Vec<f32>,
@@ -46,7 +46,7 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// Encode vector data using product quantization.
-    /// 
+    ///
     /// # Arguments
     /// * `data` - iterator over original vector data
     /// * `storage_builder` - encoding result storage builder
@@ -286,7 +286,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         // find centroids for each chunk
         for range in vector_division.iter() {
-            // take data subset using indexes from 
+            // take data subset using indexes from
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
             let mut selected_index: usize = 0;
             for (vector_index, vector_data) in data.clone().enumerate() {
