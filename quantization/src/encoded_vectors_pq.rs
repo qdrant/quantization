@@ -86,7 +86,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let storage = storage_builder.build();
 
         #[cfg(feature = "dump_image")]
-        Self::dump_to_image(orig_data, &storage, &centroids, &vector_division);
+        Self::dump_to_image(data, &storage, &centroids, &vector_division);
 
         Ok(Self {
             encoded_vectors: storage,
