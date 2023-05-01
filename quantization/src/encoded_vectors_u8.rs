@@ -1,6 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
 
 use crate::encoded_vectors::validate_vector_parameters;
