@@ -1,10 +1,7 @@
 use std::collections::{BinaryHeap, HashSet};
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use quantization::{
-    encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
-    encoded_vectors_u8::EncodedVectorsU8,
-};
+use quantization::encoded_vectors::EncodedVectors;
 
 pub struct AnnBenchmarkData {
     pub dim: usize,
@@ -93,34 +90,6 @@ impl AnnBenchmarkData {
         });
     }
 
-    pub fn encode_data(
-        &self,
-        distance_type: DistanceType,
-        quantile: Option<f32>,
-    ) -> EncodedVectorsU8<Vec<u8>> {
-        println!("Start encoding:");
-        let timer = std::time::Instant::now();
-        let encoded_data = EncodedVectorsU8::encode(
-            self.vectors
-                .rows()
-                .into_iter()
-                .map(|row| row.to_slice().unwrap()),
-            Vec::<u8>::new(),
-            &VectorParameters {
-                dim: self.dim,
-                count: self.vectors_count,
-                distance_type,
-                invert: false,
-            },
-            quantile,
-        )
-        .unwrap();
-        println!("encoding time: {:?}", timer.elapsed());
-        println!("Original data size: {}", self.vectors_count * self.dim * 4);
-        //println!("Encoded data size: {}", encoded_data.data_size());
-        encoded_data
-    }
-
     pub fn measure_scoring<F>(&self, queries_count: usize, query_function: F)
     where
         F: Fn(&[f32], &mut [f32]),
@@ -151,9 +120,13 @@ impl AnnBenchmarkData {
         Self::print_timings(&mut timings);
     }
 
-    pub fn test_knn<F>(&self, encoded: &EncodedVectorsU8<Vec<u8>>, postprocess: F)
-    where
+    pub fn test_knn<F, TEncodedQuery, TEncodedVectors>(
+        &self,
+        encoded: &TEncodedVectors,
+        postprocess: F,
+    ) where
         F: Fn(f32) -> f32,
+        TEncodedVectors: EncodedVectors<TEncodedQuery>,
     {
         let multiprogress = MultiProgress::new();
         let sent_bar = multiprogress.add(ProgressBar::new(self.queries_count as u64));

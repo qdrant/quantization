@@ -2,8 +2,7 @@
 mod metrics;
 
 #[cfg(test)]
-#[cfg(any(target_arch = "aarch64"))]
-#[cfg(target_feature = "neon")]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 mod tests {
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},

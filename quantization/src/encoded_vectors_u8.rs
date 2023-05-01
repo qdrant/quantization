@@ -1,16 +1,15 @@
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::Path;
 
-use crate::quantile::find_quantile_interval;
+use crate::encoded_vectors::validate_vector_parameters;
+use crate::quantile::{find_min_max_from_iter, find_quantile_interval};
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
     EncodingError,
 };
 
-pub const ALIGHMENT: usize = 16;
+pub const ALIGNMENT: usize = 16;
 
 pub struct EncodedVectorsU8<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
@@ -33,16 +32,20 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         quantile: Option<f32>,
     ) -> Result<Self, EncodingError> {
-        let (alpha, offset, count, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
+        debug_assert!(validate_vector_parameters(orig_data.clone(), vector_parameters).is_ok());
+        let (alpha, offset) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let (alpha, offset) = if let Some(quantile) = quantile {
-            if let Some((min, max)) =
-                find_quantile_interval(orig_data.clone(), dim, count, quantile)
-            {
+            if let Some((min, max)) = find_quantile_interval(
+                orig_data.clone(),
+                vector_parameters.dim,
+                vector_parameters.count,
+                quantile,
+            ) {
                 Self::alpha_offset_from_min_max(min, max)
             } else {
                 (alpha, offset)
@@ -59,8 +62,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
                 let endoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(endoded);
             }
-            if dim % ALIGHMENT != 0 {
-                for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
+            if vector_parameters.dim % ALIGNMENT != 0 {
+                for _ in 0..(ALIGNMENT - vector_parameters.dim % ALIGNMENT) {
                     let placeholder = match vector_parameters.distance_type {
                         DistanceType::Dot => 0.0,
                         DistanceType::L2 => offset,
@@ -165,27 +168,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         }
     }
 
-    fn find_alpha_offset_size_dim<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]>,
-    ) -> (f32, f32, usize, usize) {
-        let mut min = f32::MAX;
-        let mut max = f32::MIN;
-        let mut count: usize = 0;
-        let mut dim: usize = 0;
-        for vector in orig_data {
-            count += 1;
-            dim = dim.max(vector.len());
-            for &value in vector {
-                if value < min {
-                    min = value;
-                }
-                if value > max {
-                    max = value;
-                }
-            }
-        }
-        let (alpha, offset) = Self::alpha_offset_from_min_max(min, max);
-        (alpha, offset, count, dim)
+    fn find_alpha_offset_size_dim<'a>(orig_data: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+        let (min, max) = find_min_max_from_iter(orig_data);
+        Self::alpha_offset_from_min_max(min, max)
     }
 
     fn alpha_offset_from_min_max(min: f32, max: f32) -> (f32, f32) {
@@ -218,7 +203,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     }
 
     pub fn get_actual_dim(vector_parameters: &VectorParameters) -> usize {
-        vector_parameters.dim + (ALIGHMENT - vector_parameters.dim % ALIGHMENT) % ALIGHMENT
+        vector_parameters.dim + (ALIGNMENT - vector_parameters.dim % ALIGNMENT) % ALIGNMENT
     }
 }
 
@@ -226,8 +211,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
     fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()> {
         let metadata_bytes = serde_json::to_vec(&self.metadata)?;
         meta_path.parent().map(std::fs::create_dir_all);
-        let mut buffer = File::create(meta_path)?;
-        buffer.write_all(&metadata_bytes)?;
+        std::fs::write(meta_path, metadata_bytes)?;
 
         data_path.parent().map(std::fs::create_dir_all);
         self.encoded_vectors.save_to_file(data_path)?;
@@ -239,9 +223,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         meta_path: &Path,
         vector_parameters: &VectorParameters,
     ) -> std::io::Result<Self> {
-        let mut contents = String::new();
-        let mut file = File::open(meta_path)?;
-        file.read_to_string(&mut contents)?;
+        let contents = std::fs::read_to_string(meta_path)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
         let quantized_vector_size = Self::get_quantized_vector_size(vector_parameters);
         let encoded_vectors =
@@ -259,8 +241,8 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
             .iter()
             .map(|&v| Self::f32_to_u8(v, self.metadata.alpha, self.metadata.offset))
             .collect();
-        if dim % ALIGHMENT != 0 {
-            for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
+        if dim % ALIGNMENT != 0 {
+            for _ in 0..(ALIGNMENT - dim % ALIGNMENT) {
                 let placeholder = match self.metadata.vector_parameters.distance_type {
                     DistanceType::Dot => 0.0,
                     DistanceType::L2 => self.metadata.offset,
@@ -298,27 +280,24 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         let (vector_offset, v_ptr) = self.get_vec_ptr(i);
 
         #[cfg(target_arch = "x86_64")]
-        unsafe {
-            if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + query.offset + vector_offset;
-            }
+        if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+            let score =
+                unsafe { impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + query.offset + vector_offset;
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        unsafe {
-            if is_x86_feature_detected!("sse4.1") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + query.offset + vector_offset;
-            }
+        if is_x86_feature_detected!("sse4.1") {
+            let score =
+                unsafe { impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + query.offset + vector_offset;
         }
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        unsafe {
-            if std::arch::is_aarch64_feature_detected!("neon") {
-                let score = impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + query.offset + vector_offset;
-            }
+        if std::arch::is_aarch64_feature_detected!("neon") {
+            let score =
+                unsafe { impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + query.offset + vector_offset;
         }
 
         self.score_point_simple(query, i)
@@ -336,27 +315,24 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         let offset = query_offset + vector_offset - diff;
 
         #[cfg(target_arch = "x86_64")]
-        unsafe {
-            if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
-                let score = impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + offset;
-            }
+        if is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma") {
+            let score =
+                unsafe { impl_score_dot_avx(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + offset;
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        unsafe {
-            if is_x86_feature_detected!("sse4.1") {
-                let score = impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + offset;
-            }
+        if is_x86_feature_detected!("sse4.1") {
+            let score =
+                unsafe { impl_score_dot_sse(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + offset;
         }
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        unsafe {
-            if std::arch::is_aarch64_feature_detected!("neon") {
-                let score = impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32);
-                return self.metadata.multiplier * score + offset;
-            }
+        if std::arch::is_aarch64_feature_detected!("neon") {
+            let score =
+                unsafe { impl_score_dot_neon(q_ptr, v_ptr, self.metadata.actual_dim as u32) };
+            return self.metadata.multiplier * score + offset;
         }
 
         unsafe {
