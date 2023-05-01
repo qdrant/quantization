@@ -24,6 +24,7 @@ use crate::{
 pub const KMEANS_SAMPLE_SIZE: usize = 10_000;
 pub const KMEANS_MAX_ITERATIONS: usize = 100;
 pub const KMEANS_ACCURACY: f32 = 1e-5;
+pub const CENTROIDS_COUNT: usize = 256;
 
 pub struct EncodedVectorsPQ<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
@@ -66,12 +67,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
 
         // then, find flattened centroid positions
-        let centroids_count = 256;
         let centroids = Self::find_centroids(
             data.clone(),
             &vector_division,
             vector_parameters,
-            centroids_count,
+            CENTROIDS_COUNT,
             max_kmeans_threads,
         )?;
 
