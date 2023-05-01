@@ -324,11 +324,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let colors_r: Vec<_> = (0..256).map(|_| rand::random()).collect();
         let colors_g: Vec<_> = (0..256).map(|_| rand::random()).collect();
         let colors_b: Vec<_> = (0..256).map(|_| rand::random()).collect();
-        for (range_i, range) in vector_division.iter().enumerate() {
-            if range.len() < 2 {
-                continue;
-            }
-
+        for (range_i, range) in vector_division
+            .iter()
+            .enumerate()
+            .filter(|(_, range)| range.len() >= 2)
+        {
             let mut centroids_counter = (0..centroids.len()).map(|_| 0usize).collect::<Vec<_>>();
 
             let imgx = 1000;
