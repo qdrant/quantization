@@ -117,12 +117,16 @@ fn update_centroids(
         }
     }
 
-    let mut diff = 0.0;
-    for (c, c_acc) in centroids.iter_mut().zip(counter.acc.iter()) {
-        let c_acc = *c_acc as f32;
-        diff += (*c - c_acc).abs();
-        *c = c_acc;
-    }
+    let diff = centroids
+        .iter_mut()
+        .zip(counter.acc.iter())
+        .map(|(c, c_acc)| {
+            let c_acc = *c_acc as f32;
+            let value = (*c - c_acc).abs();
+            *c = c_acc;
+            value
+        })
+        .sum::<f32>();
     diff < accuracy
 }
 
