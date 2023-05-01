@@ -146,7 +146,7 @@ fn update_indexes(
                         .iter()
                         .zip(centroid_data.iter())
                         .map(|(a, b)| (a - b).powi(2))
-                        .sum::<f32>();
+                        .sum();
                     if distance < min_distance {
                         min_distance = distance;
                         min_centroid_index = centroid_index;
