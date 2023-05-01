@@ -9,7 +9,7 @@ use crate::{
     EncodingError,
 };
 
-pub const ALIGHMENT: usize = 16;
+pub const ALIGNMENT: usize = 16;
 
 pub struct EncodedVectorsU8<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
@@ -62,8 +62,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
                 let endoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(endoded);
             }
-            if vector_parameters.dim % ALIGHMENT != 0 {
-                for _ in 0..(ALIGHMENT - vector_parameters.dim % ALIGHMENT) {
+            if vector_parameters.dim % ALIGNMENT != 0 {
+                for _ in 0..(ALIGNMENT - vector_parameters.dim % ALIGNMENT) {
                     let placeholder = match vector_parameters.distance_type {
                         DistanceType::Dot => 0.0,
                         DistanceType::L2 => offset,
@@ -203,7 +203,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     }
 
     pub fn get_actual_dim(vector_parameters: &VectorParameters) -> usize {
-        vector_parameters.dim + (ALIGHMENT - vector_parameters.dim % ALIGHMENT) % ALIGHMENT
+        vector_parameters.dim + (ALIGNMENT - vector_parameters.dim % ALIGNMENT) % ALIGNMENT
     }
 }
 
@@ -241,8 +241,8 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
             .iter()
             .map(|&v| Self::f32_to_u8(v, self.metadata.alpha, self.metadata.offset))
             .collect();
-        if dim % ALIGHMENT != 0 {
-            for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
+        if dim % ALIGNMENT != 0 {
+            for _ in 0..(ALIGNMENT - dim % ALIGNMENT) {
                 let placeholder = match self.metadata.vector_parameters.distance_type {
                     DistanceType::Dot => 0.0,
                     DistanceType::L2 => self.metadata.offset,
