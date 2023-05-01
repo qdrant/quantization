@@ -15,7 +15,7 @@ pub use encoded_vectors_u8::{EncodedQueryU8, EncodedVectorsU8};
 
 #[derive(Debug)]
 pub struct EncodingError {
-    pub description: String,
+    description: String,
 }
 
 impl Display for EncodingError {

@@ -111,7 +111,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         (0..dim)
             .step_by(chunk_size)
             .map(|i| i..std::cmp::min(i + chunk_size, dim))
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     /// Encode whole storage
