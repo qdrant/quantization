@@ -20,16 +20,15 @@ mod tests {
     #[test]
     fn test_pq_dot() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
-        let query: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -52,16 +51,15 @@ mod tests {
     #[test]
     fn test_pq_l2() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen::<f32>()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
-        let query: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen::<f32>()).collect();
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -84,16 +82,15 @@ mod tests {
     #[test]
     fn test_pq_dot_inverted() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
-        let query: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -116,16 +113,15 @@ mod tests {
     #[test]
     fn test_pq_l2_inverted() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen::<f32>()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
-        let query: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen::<f32>()).collect();
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -148,15 +144,14 @@ mod tests {
     #[test]
     fn test_pq_dot_internal() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -178,15 +173,14 @@ mod tests {
     #[test]
     fn test_pq_dot_inverted_internal() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
-            Vec::<u8>::new(),
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
                 count: VECTORS_COUNT,
@@ -212,10 +206,9 @@ mod tests {
     #[test]
     fn test_encode_panic() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
-        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        let mut vector_data: Vec<Vec<_>> = vec![];
         for _ in 0..VECTORS_COUNT {
-            let vector: Vec<f32> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
-            vector_data.push(vector);
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
         }
 
         for i in 0.. {
@@ -237,7 +230,7 @@ mod tests {
                         }
                         v.as_slice()
                     }),
-                    Vec::<u8>::new(),
+                    vec![],
                     &VectorParameters {
                         dim: VECTOR_DIM,
                         count: VECTORS_COUNT,
