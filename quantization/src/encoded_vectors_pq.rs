@@ -321,9 +321,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     ) {
         let (min, max) = crate::quantile::find_min_max_from_iter(data.clone());
 
-        let colors_r: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
-        let colors_g: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
-        let colors_b: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
+        let colors_r: Vec<_> = (0..256).map(|_| rand::random()).collect();
+        let colors_g: Vec<_> = (0..256).map(|_| rand::random()).collect();
+        let colors_b: Vec<_> = (0..256).map(|_| rand::random()).collect();
         for (range_i, range) in vector_division.iter().enumerate() {
             if range.len() < 2 {
                 continue;
