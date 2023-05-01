@@ -450,7 +450,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
         let mut centroids = centroids.as_ptr();
         let mut lut = query.lut.as_ptr();
-        
+
         (0..len)
             .map(|_| unsafe {
                 let value = *lut.add(*centroids as usize);
@@ -459,7 +459,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 value
             })
             .sum()
-        }
     }
 }
 
