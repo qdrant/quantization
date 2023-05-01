@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 
-use crate::quantile::{find_min_max_size_dim_from_iter, find_quantile_interval};
+use crate::encoded_vectors::validate_vector_parameters;
+use crate::quantile::{find_min_max_from_iter, find_quantile_interval};
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
@@ -33,16 +34,20 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         quantile: Option<f32>,
     ) -> Result<Self, EncodingError> {
-        let (alpha, offset, count, dim) = Self::find_alpha_offset_size_dim(orig_data.clone());
+        debug_assert!(validate_vector_parameters(orig_data.clone(), vector_parameters).is_ok());
+        let (alpha, offset) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let (alpha, offset) = if let Some(quantile) = quantile {
-            if let Some((min, max)) =
-                find_quantile_interval(orig_data.clone(), dim, count, quantile)
-            {
+            if let Some((min, max)) = find_quantile_interval(
+                orig_data.clone(),
+                vector_parameters.dim,
+                vector_parameters.count,
+                quantile,
+            ) {
                 Self::alpha_offset_from_min_max(min, max)
             } else {
                 (alpha, offset)
@@ -59,8 +64,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
                 let endoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(endoded);
             }
-            if dim % ALIGHMENT != 0 {
-                for _ in 0..(ALIGHMENT - dim % ALIGHMENT) {
+            if vector_parameters.dim % ALIGHMENT != 0 {
+                for _ in 0..(ALIGHMENT - vector_parameters.dim % ALIGHMENT) {
                     let placeholder = match vector_parameters.distance_type {
                         DistanceType::Dot => 0.0,
                         DistanceType::L2 => offset,
@@ -165,12 +170,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         }
     }
 
-    fn find_alpha_offset_size_dim<'a>(
-        orig_data: impl IntoIterator<Item = &'a [f32]>,
-    ) -> (f32, f32, usize, usize) {
-        let (min, max, size, dim) = find_min_max_size_dim_from_iter(orig_data);
-        let (alpha, offset) = Self::alpha_offset_from_min_max(min, max);
-        (alpha, offset, size, dim)
+    fn find_alpha_offset_size_dim<'a>(orig_data: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+        let (min, max) = find_min_max_from_iter(orig_data);
+        Self::alpha_offset_from_min_max(min, max)
     }
 
     fn alpha_offset_from_min_max(min: f32, max: f32) -> (f32, f32) {

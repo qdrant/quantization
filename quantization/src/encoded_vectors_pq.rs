@@ -12,6 +12,7 @@ use std::arch::x86_64::*;
 use std::arch::aarch64::*;
 use std::sync::{Arc, Mutex};
 
+use crate::encoded_vectors::validate_vector_parameters;
 use crate::kmeans::kmeans;
 use crate::ConditionalVariable;
 use crate::{
@@ -59,6 +60,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         chunk_size: usize,
         max_kmeans_threads: usize,
     ) -> Result<Self, EncodingError> {
+        debug_assert!(validate_vector_parameters(data.clone(), vector_parameters).is_ok());
+
         // first, divide vector into chunks
         let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
 
@@ -323,8 +326,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         centroids: &[Vec<f32>],
         vector_division: &[Range<usize>],
     ) {
-        let (min, max, _count, _dim) =
-            crate::quantile::find_min_max_size_dim_from_iter(data.clone());
+        let (min, max) = crate::quantile::find_min_max_from_iter(data.clone());
 
         let colors_r: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();
         let colors_g: Vec<_> = (0..256).map(|_| rand::random::<u8>()).collect();

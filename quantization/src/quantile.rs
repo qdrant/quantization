@@ -2,16 +2,8 @@ use permutation_iterator::Permutor;
 
 pub const QUANTILE_SAMPLE_SIZE: usize = 100_000;
 
-pub(crate) fn find_min_max_size_dim_from_iter<'a>(
-    iter: impl IntoIterator<Item = &'a [f32]>,
-) -> (f32, f32, usize, usize) {
-    let mut min = f32::MAX;
-    let mut max = f32::MIN;
-    let mut count: usize = 0;
-    let mut dim: usize = 0;
-    for vector in iter {
-        count += 1;
-        dim = dim.max(vector.len());
+pub(crate) fn find_min_max_from_iter<'a>(iter: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+    iter.fold((f32::MAX, f32::MIN), |(mut min, mut max), vector| {
         for &value in vector {
             if value < min {
                 min = value;
@@ -20,12 +12,12 @@ pub(crate) fn find_min_max_size_dim_from_iter<'a>(
                 max = value;
             }
         }
-    }
-    (min, max, count, dim)
+        (min, max)
+    })
 }
 
 pub(crate) fn find_quantile_interval<'a>(
-    vector_data: impl IntoIterator<Item = &'a [f32]>,
+    vector_data: impl Iterator<Item = &'a [f32]>,
     dim: usize,
     count: usize,
     quantile: f32,
@@ -59,6 +51,7 @@ pub(crate) fn find_quantile_interval<'a>(
     }
 
     let selected_values = [selected_values];
-    let (min, max, _, _) = find_min_max_size_dim_from_iter(selected_values.iter().map(|v| &v[..]));
-    Some((min, max))
+    Some(find_min_max_from_iter(
+        selected_values.iter().map(|v| &v[..]),
+    ))
 }

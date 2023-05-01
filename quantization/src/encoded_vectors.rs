@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::EncodingError;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DistanceType {
     Dot,
@@ -38,4 +40,32 @@ impl DistanceType {
             DistanceType::L2 => a.iter().zip(b.iter()).map(|(a, b)| (a - b) * (a - b)).sum(),
         }
     }
+}
+
+pub(crate) fn validate_vector_parameters<'a>(
+    data: impl Iterator<Item = &'a [f32]>,
+    vector_parameters: &VectorParameters,
+) -> Result<(), EncodingError> {
+    let mut count = 0;
+    for vector in data {
+        if vector.len() != vector_parameters.dim {
+            return Err(EncodingError {
+                description: format!(
+                    "Vector length {} does not match vector parameters dim {}",
+                    vector.len(),
+                    vector_parameters.dim
+                ),
+            });
+        }
+        count += 1;
+    }
+    if count != vector_parameters.count {
+        return Err(EncodingError {
+            description: format!(
+                "Vector count {} does not match vector parameters count {}",
+                count, vector_parameters.count
+            ),
+        });
+    }
+    Ok(())
 }
