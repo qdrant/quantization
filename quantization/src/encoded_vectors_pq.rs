@@ -442,23 +442,23 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     }
 
     fn score_point_simple(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
-        unsafe {
-            let centroids = self
-                .encoded_vectors
-                .get_vector_data(i as usize, self.metadata.vector_division.len());
-            let len = centroids.len();
-            let centroids_count = self.metadata.centroids.len();
+        let centroids = self
+            .encoded_vectors
+            .get_vector_data(i as usize, self.metadata.vector_division.len());
+        let len = centroids.len();
+        let centroids_count = self.metadata.centroids.len();
 
-            let mut centroids = centroids.as_ptr();
-            let mut lut = query.lut.as_ptr();
-
-            let mut sum = 0.0;
-            for _ in 0..len {
-                sum += *lut.add(*centroids as usize);
+        let mut centroids = centroids.as_ptr();
+        let mut lut = query.lut.as_ptr();
+        
+        (0..len)
+            .map(|_| unsafe {
+                let value = *lut.add(*centroids as usize);
                 centroids = centroids.add(1);
                 lut = lut.add(centroids_count);
-            }
-            sum
+                value
+            })
+            .sum()
         }
     }
 }
