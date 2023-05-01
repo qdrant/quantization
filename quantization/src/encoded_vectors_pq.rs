@@ -104,8 +104,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_parameters: &VectorParameters,
         chunk_size: usize,
     ) -> usize {
-        let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
-        vector_division.len()
+        (0..vector_parameters.dim).step_by(chunk_size).count()
     }
 
     fn get_vector_division(dim: usize, chunk_size: usize) -> Vec<Range<usize>> {
