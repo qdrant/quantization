@@ -213,8 +213,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
     fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()> {
         let metadata_bytes = serde_json::to_vec(&self.metadata)?;
         meta_path.parent().map(std::fs::create_dir_all);
-        let mut buffer = File::create(meta_path)?;
-        buffer.write_all(&metadata_bytes)?;
+        std::fs::write(meta_path, metadata_bytes)?;
 
         data_path.parent().map(std::fs::create_dir_all);
         self.encoded_vectors.save_to_file(data_path)?;
