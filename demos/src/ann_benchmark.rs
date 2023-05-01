@@ -11,8 +11,7 @@ use crate::metrics::utils_avx2::dot_avx;
 #[cfg(target_arch = "x86_64")]
 use demos::metrics::utils_sse::dot_sse;
 
-#[cfg(target_arch = "aarch64")]
-#[cfg(target_feature = "neon")]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 use crate::metrics::utils_neon::dot_neon;
 
 use crate::ann_benchmark_data::AnnBenchmarkData;
@@ -221,8 +220,7 @@ fn run_test<TEncodedQuery, TEncodedVectors: EncodedVectors<TEncodedQuery>>(
         });
     }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
     if args.bench_simd {
         println!("Measure NEON linear access");
         data.measure_scoring(queries_count, |query, scores| {

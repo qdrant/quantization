@@ -2,7 +2,7 @@
 mod metrics;
 
 #[cfg(test)]
-#[cfg(any(target_arch = "x86_64"))]
+#[cfg(target_arch = "x86_64")]
 mod tests {
     use crate::metrics::{dot_similarity, l2_similarity};
     use quantization::{

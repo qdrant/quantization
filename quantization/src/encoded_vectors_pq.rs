@@ -8,8 +8,7 @@ use std::path::Path;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-#[cfg(target_arch = "aarch64")]
-#[cfg(target_feature = "neon")]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 use std::arch::aarch64::*;
 use std::sync::{Arc, Mutex};
 
@@ -413,8 +412,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         sum
     }
 
-    #[cfg(target_arch = "aarch64")]
-    #[cfg(target_feature = "neon")]
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
     unsafe fn score_point_neon(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
         let centroids = self
             .encoded_vectors
