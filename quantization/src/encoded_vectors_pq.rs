@@ -517,17 +517,13 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryPQ> for EncodedVectors
 
     fn score_point(&self, query: &EncodedQueryPQ, i: u32) -> f32 {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        unsafe {
-            if is_x86_feature_detected!("sse4.1") {
-                return self.score_point_sse(query, i);
-            }
+        if is_x86_feature_detected!("sse4.1") {
+            return unsafe { self.score_point_sse(query, i) };
         }
 
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        unsafe {
-            if std::arch::is_aarch64_feature_detected!("neon") {
-                return self.score_point_neon(query, i);
-            }
+        if std::arch::is_aarch64_feature_detected!("neon") {
+            return unsafe { self.score_point_neon(query, i) };
         }
 
         self.score_point_simple(query, i)
