@@ -329,7 +329,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .enumerate()
             .filter(|(_, range)| range.len() >= 2)
         {
-            let mut centroids_counter = std::iter::repeat(0).take(centroids.len()).collect::<Vec<usize>>();
+            let mut centroids_counter = std::iter::repeat(0)
+                .take(centroids.len())
+                .collect::<Vec<usize>>();
 
             let imgx = 1000;
             let imgy = 1000;

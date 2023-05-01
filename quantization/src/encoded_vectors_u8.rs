@@ -226,9 +226,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
         meta_path: &Path,
         vector_parameters: &VectorParameters,
     ) -> std::io::Result<Self> {
-        let mut contents = String::new();
-        let mut file = File::open(meta_path)?;
-        file.read_to_string(&mut contents)?;
+        let contents = std::fs::read_to_string(meta_path)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
         let quantized_vector_size = Self::get_quantized_vector_size(vector_parameters);
         let encoded_vectors =
