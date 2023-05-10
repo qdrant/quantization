@@ -138,6 +138,7 @@ fn main() {
                     &vector_parameters,
                     args.chunk_size,
                     num_cpus::get(),
+                    || false,
                 )
                 .unwrap();
                 println!("encoding time: {:?}", timer.elapsed());
@@ -150,6 +151,7 @@ fn main() {
                     Vec::<u8>::new(),
                     &vector_parameters,
                     args.quantile,
+                    || false,
                 )
                 .unwrap();
                 println!("encoding time: {:?}", timer.elapsed());

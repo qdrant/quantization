@@ -13,14 +13,26 @@ pub use encoded_vectors::{DistanceType, EncodedVectors, VectorParameters};
 pub use encoded_vectors_pq::{EncodedQueryPQ, EncodedVectorsPQ};
 pub use encoded_vectors_u8::{EncodedQueryU8, EncodedVectorsU8};
 
-#[derive(Debug)]
-pub struct EncodingError {
-    description: String,
+#[derive(Debug, PartialEq, Eq)]
+pub enum EncodingError {
+    IOError(String),
+    EncodingError(String),
+    ArgumentsError(String),
+    Stopped,
 }
 
 impl Display for EncodingError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.description)
+        match self {
+            EncodingError::IOError(description) => write!(f, "IOError: {}", description),
+            EncodingError::EncodingError(description) => {
+                write!(f, "EncodingError: {}", description)
+            }
+            EncodingError::ArgumentsError(description) => {
+                write!(f, "ArgumentsError: {}", description)
+            }
+            EncodingError::Stopped => write!(f, "Stopped"),
+        }
     }
 }
 

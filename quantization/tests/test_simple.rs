@@ -36,6 +36,7 @@ mod tests {
                 invert: false,
             },
             None,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -72,6 +73,7 @@ mod tests {
                 invert: false,
             },
             None,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -108,6 +110,7 @@ mod tests {
                 invert: true,
             },
             None,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -144,6 +147,7 @@ mod tests {
                 invert: true,
             },
             None,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -179,6 +183,7 @@ mod tests {
                 invert: false,
             },
             None,
+            || false,
         )
         .unwrap();
 
@@ -213,6 +218,7 @@ mod tests {
                 invert: true,
             },
             None,
+            || false,
         )
         .unwrap();
 

@@ -32,6 +32,7 @@ fn encode_bench(c: &mut Criterion) {
             invert: false,
         },
         None,
+        || false,
     )
     .unwrap();
 

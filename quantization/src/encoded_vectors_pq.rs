@@ -52,12 +52,14 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
     /// * `chunk_size` - Max size of f32 chunk that replaced by centroid index (in original vector dimension)
     /// * `max_threads` - Max allowed threads for kmeans and encodind process
+    /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     pub fn encode<'a>(
         data: impl Iterator<Item = &'a [f32]> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
         chunk_size: usize,
         max_kmeans_threads: usize,
+        stop_condition: impl Fn() -> bool + Sync,
     ) -> Result<Self, EncodingError> {
         debug_assert!(validate_vector_parameters(data.clone(), vector_parameters).is_ok());
 
@@ -71,6 +73,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             vector_parameters,
             CENTROIDS_COUNT,
             max_kmeans_threads,
+            &stop_condition,
         )?;
 
         // finally, encode data
@@ -81,6 +84,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             &vector_division,
             &centroids,
             max_kmeans_threads,
+            &stop_condition,
         )?;
 
         let storage = storage_builder.build();
@@ -88,14 +92,18 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         #[cfg(feature = "dump_image")]
         Self::dump_to_image(data, &storage, &centroids, &vector_division);
 
-        Ok(Self {
-            encoded_vectors: storage,
-            metadata: Metadata {
-                centroids,
-                vector_division,
-                vector_parameters: vector_parameters.clone(),
-            },
-        })
+        if !stop_condition() {
+            Ok(Self {
+                encoded_vectors: storage,
+                metadata: Metadata {
+                    centroids,
+                    vector_division,
+                    vector_parameters: vector_parameters.clone(),
+                },
+            })
+        } else {
+            Err(EncodingError::Stopped)
+        }
     }
 
     pub fn get_quantized_vector_size(
@@ -120,6 +128,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `vector_division` - Division of original vector into chunks
     /// * `centroids` - Centroid positions (flattened by chunks; for similarity to vector data format)
     /// * `max_threads` - Max allowed threads for encoding process
+    /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     ///
     /// # Lifetimes
     /// 'a is lifetime of vector in vector storage
@@ -130,13 +139,16 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_division: &'b [Range<usize>],
         centroids: &'b [Vec<f32>],
         max_threads: usize,
+        stop_condition: &(impl Fn() -> bool + Sync),
     ) -> Result<(), EncodingError> {
         rayon::ThreadPoolBuilder::new()
             .thread_name(|idx| format!("pq-encoding-{idx}"))
             .num_threads(std::cmp::max(1, max_threads))
             .build()
-            .map_err(|e| EncodingError {
-                description: format!("Failed PQ encoding while thread pool init: {e}"),
+            .map_err(|e| {
+                EncodingError::EncodingError(format!(
+                    "Failed PQ encoding while thread pool init: {e}"
+                ))
             })?
             .scope(|s| {
                 Self::encode_storage_rayon(
@@ -146,6 +158,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                     vector_division,
                     centroids,
                     max_threads,
+                    &stop_condition,
                 )
             })
     }
@@ -159,6 +172,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         vector_division: &'b [Range<usize>],
         centroids: &'b [Vec<f32>],
         max_threads: usize,
+        stop_condition: &'b (impl Fn() -> bool + Sync),
     ) -> Result<(), EncodingError> {
         let storage_builder = Arc::new(Mutex::new(storage_builder));
 
@@ -181,6 +195,10 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             scope.spawn(move |_| {
                 let mut encoded_vector = Vec::with_capacity(vector_division.len());
                 for vector in data.step_by(max_threads) {
+                    if stop_condition() {
+                        return;
+                    }
+
                     Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
                     // wait for permission from prev thread to use storage
                     let is_disconnected = condvar.wait();
@@ -251,12 +269,14 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
     /// * `centroids_count` - Count of centroids for each chunk
     /// * `max_kmeans_threads` - Max allowed threads for kmeans process
+    /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     fn find_centroids<'a>(
         data: impl Iterator<Item = &'a [f32]> + Clone,
         vector_division: &[Range<usize>],
         vector_parameters: &VectorParameters,
         centroids_count: usize,
         max_kmeans_threads: usize,
+        stop_condition: &(impl Fn() -> bool + Sync),
     ) -> Result<Vec<Vec<f32>>, EncodingError> {
         let sample_size = KMEANS_SAMPLE_SIZE.min(vector_parameters.count);
         let mut result = vec![vec![]; centroids_count];
@@ -275,6 +295,10 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let permutor = permutation_iterator::Permutor::new(vector_parameters.count as u64);
         let mut selected_vectors: Vec<usize> =
             permutor.map(|i| i as usize).take(sample_size).collect();
+        if stop_condition() {
+            return Err(EncodingError::Stopped);
+        }
+
         selected_vectors.sort_unstable();
 
         // find centroids for each chunk
@@ -299,6 +323,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 KMEANS_MAX_ITERATIONS,
                 max_kmeans_threads,
                 KMEANS_ACCURACY,
+                stop_condition,
             )?;
 
             // push found chunk centroids into result

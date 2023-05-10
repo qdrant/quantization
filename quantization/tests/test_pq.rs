@@ -37,6 +37,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -68,6 +69,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -99,6 +101,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -130,6 +133,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
         let query_u8 = encoded.encode_query(&query);
@@ -160,6 +164,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
 
@@ -189,6 +194,7 @@ mod tests {
             },
             1,
             1,
+            || false,
         )
         .unwrap();
 
@@ -239,6 +245,7 @@ mod tests {
                     },
                     1,
                     5,
+                    || false,
                 )
                 .unwrap()
             })
