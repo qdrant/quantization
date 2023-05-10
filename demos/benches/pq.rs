@@ -29,6 +29,7 @@ fn encode_bench(c: &mut Criterion) {
         },
         2,
         num_cpus::get(),
+        || false,
     )
     .unwrap();
 

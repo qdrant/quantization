@@ -31,6 +31,7 @@ fn main() {
             invert: false,
         },
         None,
+        || false,
     )
     .unwrap();
     let query_u8 = encoded.encode_query(&query);

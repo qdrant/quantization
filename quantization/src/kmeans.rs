@@ -11,13 +11,14 @@ pub fn kmeans(
     max_iterations: usize,
     max_threads: usize,
     accuracy: f32,
+    stop_condition: &impl Fn() -> bool,
 ) -> Result<Vec<f32>, EncodingError> {
     let pool = rayon::ThreadPoolBuilder::new()
         .thread_name(|idx| format!("kmeans-{idx}"))
         .num_threads(max_threads)
         .build()
-        .map_err(|e| EncodingError {
-            description: format!("Failed PQ encoding while thread pool init: {e}"),
+        .map_err(|e| {
+            EncodingError::EncodingError(format!("Failed PQ encoding while thread pool init: {e}"))
         })?;
 
     // initial centroids positions are some vectors from data
@@ -25,6 +26,10 @@ pub fn kmeans(
     let mut centroid_indexes = vec![0u32; data.len() / dim];
 
     for _ in 0..max_iterations {
+        if stop_condition() {
+            return Err(EncodingError::Stopped);
+        }
+
         update_indexes(&pool, data, &mut centroid_indexes, &centroids);
         if update_centroids(
             &pool,

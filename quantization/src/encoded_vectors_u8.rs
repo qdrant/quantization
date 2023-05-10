@@ -36,7 +36,23 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         quantile: Option<f32>,
+        stop_condition: impl Fn() -> bool,
     ) -> Result<Self, EncodingError> {
+        let actual_dim = Self::get_actual_dim(vector_parameters);
+
+        if vector_parameters.count == 0 {
+            return Ok(EncodedVectorsU8 {
+                encoded_vectors: storage_builder.build(),
+                metadata: Metadata {
+                    actual_dim,
+                    alpha: 0.0,
+                    offset: 0.0,
+                    multiplier: 0.0,
+                    vector_parameters: vector_parameters.clone(),
+                },
+            });
+        }
+
         debug_assert!(validate_vector_parameters(orig_data.clone(), vector_parameters).is_ok());
         let (alpha, offset) = Self::find_alpha_offset_size_dim(orig_data.clone());
         let (alpha, offset) = if let Some(quantile) = quantile {
@@ -54,8 +70,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
             (alpha, offset)
         };
 
-        let actual_dim = Self::get_actual_dim(vector_parameters);
         for vector in orig_data {
+            if stop_condition() {
+                return Err(EncodingError::Stopped);
+            }
+
             let mut encoded_vector = Vec::with_capacity(actual_dim + std::mem::size_of::<f32>());
             encoded_vector.extend_from_slice(&f32::default().to_ne_bytes());
             for &value in vector {
