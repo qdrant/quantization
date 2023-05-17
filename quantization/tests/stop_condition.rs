@@ -10,6 +10,7 @@ mod tests {
 
     use quantization::{
         encoded_vectors::{DistanceType, VectorParameters},
+        encoded_vectors_pq::CentroidsParameters,
         encoded_vectors_u8::EncodedVectorsU8,
         EncodedVectorsPQ, EncodingError,
     };
@@ -76,7 +77,7 @@ mod tests {
                 (0..vector_parameters.count).map(|_| zero_vector.as_slice()),
                 Vec::<u8>::new(),
                 &vector_parameters,
-                2,
+                CentroidsParameters::KMeans { chunk_size: 2 },
                 1,
                 || stopped_ref.load(Ordering::Relaxed),
             )

@@ -2,7 +2,7 @@ mod ann_benchmark_data;
 mod metrics;
 
 use quantization::encoded_vectors::{DistanceType, EncodedVectors};
-use quantization::encoded_vectors_pq::EncodedVectorsPQ;
+use quantization::encoded_vectors_pq::{CentroidsParameters, EncodedVectorsPQ};
 use quantization::{EncodedVectorsU8, VectorParameters};
 
 #[cfg(target_arch = "x86_64")]
@@ -136,7 +136,9 @@ fn main() {
                     data_iter,
                     Vec::<u8>::new(),
                     &vector_parameters,
-                    args.chunk_size,
+                    CentroidsParameters::KMeans {
+                        chunk_size: args.chunk_size,
+                    },
                     num_cpus::get(),
                     || false,
                 )

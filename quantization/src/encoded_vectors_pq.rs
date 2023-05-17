@@ -36,6 +36,16 @@ pub struct EncodedQueryPQ {
     lut: Vec<f32>,
 }
 
+pub enum CentroidsParameters {
+    KMeans {
+        chunk_size: usize,
+    },
+    Custom {
+        vector_division: Vec<Range<usize>>,
+        centroids: Vec<Vec<f32>>,
+    },
+}
+
 #[derive(Serialize, Deserialize)]
 struct Metadata {
     centroids: Vec<Vec<f32>>,
@@ -50,31 +60,41 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `data` - iterator over original vector data
     /// * `storage_builder` - encoding result storage builder
     /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
-    /// * `chunk_size` - Max size of f32 chunk that replaced by centroid index (in original vector dimension)
+    /// * `centroid_parameters` - parameters of centroids (chunk size or custom centroids)
     /// * `max_threads` - Max allowed threads for kmeans and encodind process
     /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     pub fn encode<'a>(
         data: impl Iterator<Item = &'a [f32]> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
-        chunk_size: usize,
+        centroid_parameters: CentroidsParameters,
         max_kmeans_threads: usize,
         stop_condition: impl Fn() -> bool + Sync,
     ) -> Result<Self, EncodingError> {
         debug_assert!(validate_vector_parameters(data.clone(), vector_parameters).is_ok());
 
         // first, divide vector into chunks
-        let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
+        let vector_division = match &centroid_parameters {
+            CentroidsParameters::KMeans { chunk_size } => {
+                Self::get_vector_division(vector_parameters.dim, *chunk_size)
+            }
+            CentroidsParameters::Custom {
+                vector_division, ..
+            } => vector_division.clone(),
+        };
 
         // then, find flattened centroid positions
-        let centroids = Self::find_centroids(
-            data.clone(),
-            &vector_division,
-            vector_parameters,
-            CENTROIDS_COUNT,
-            max_kmeans_threads,
-            &stop_condition,
-        )?;
+        let centroids = match centroid_parameters {
+            CentroidsParameters::KMeans { .. } => Self::find_centroids(
+                data.clone(),
+                &vector_division,
+                vector_parameters,
+                CENTROIDS_COUNT,
+                max_kmeans_threads,
+                &stop_condition,
+            )?,
+            CentroidsParameters::Custom { centroids, .. } => centroids,
+        };
 
         // finally, encode data
         #[allow(clippy::redundant_clone)]

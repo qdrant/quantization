@@ -7,7 +7,7 @@ mod tests {
 
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
-        encoded_vectors_pq::EncodedVectorsPQ,
+        encoded_vectors_pq::{CentroidsParameters, EncodedVectorsPQ},
     };
     use rand::{Rng, SeedableRng};
 
@@ -35,7 +35,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -67,7 +67,7 @@ mod tests {
                 distance_type: DistanceType::L2,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -99,7 +99,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -131,7 +131,7 @@ mod tests {
                 distance_type: DistanceType::L2,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -162,7 +162,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -192,7 +192,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -243,7 +243,7 @@ mod tests {
                         distance_type: DistanceType::Dot,
                         invert: false,
                     },
-                    1,
+                    CentroidsParameters::KMeans { chunk_size: 1 },
                     5,
                     || false,
                 )
