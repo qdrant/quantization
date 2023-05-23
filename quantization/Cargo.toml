@@ -6,6 +6,8 @@ authors = [
     "Qdrant Team <info@qdrant.tech>",
 ]
 license = "Apache-2.0"
+homepage = "https://qdrant.tech/"
+repository = "https://github.com/qdrant/quantization"
 edition = "2021"
 
 [features]
