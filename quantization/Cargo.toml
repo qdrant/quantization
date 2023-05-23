@@ -1,6 +1,10 @@
 [package]
 name = "quantization"
 version = "0.1.0"
+authors = [
+    "Ivan Pleshkov <pleshkov.ivan@gmail.com>",
+    "Qdrant Team <info@qdrant.tech>",
+]
 license = "Apache-2.0"
 edition = "2021"
 
