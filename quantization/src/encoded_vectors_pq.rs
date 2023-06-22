@@ -121,9 +121,14 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
     pub fn get_quantized_vector_size(
         vector_parameters: &VectorParameters,
-        chunk_size: usize,
+        centroid_parameters: CentroidsParameters,
     ) -> usize {
-        (0..vector_parameters.dim).step_by(chunk_size).count()
+        match centroid_parameters {
+            CentroidsParameters::KMeans { chunk_size } => {
+                (0..vector_parameters.dim).step_by(chunk_size).count()
+            }
+            CentroidsParameters::Custom { codebook } => codebook.len(),
+        }
     }
 
     fn get_vector_division(dim: usize, chunk_size: usize) -> Vec<Range<usize>> {
