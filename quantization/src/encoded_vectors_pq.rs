@@ -37,13 +37,8 @@ pub struct EncodedQueryPQ {
 }
 
 pub enum CentroidsParameters {
-    KMeans {
-        chunk_size: usize,
-    },
-    Custom {
-        vector_division: Vec<Range<usize>>,
-        centroids: Vec<Vec<f32>>,
-    },
+    KMeans { chunk_size: usize },
+    Custom { codebook: Vec<Vec<Vec<f32>>> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,9 +73,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             CentroidsParameters::KMeans { chunk_size } => {
                 Self::get_vector_division(vector_parameters.dim, *chunk_size)
             }
-            CentroidsParameters::Custom {
-                vector_division, ..
-            } => vector_division.clone(),
+            CentroidsParameters::Custom { codebook } => Self::convert_codebook(codebook).1,
         };
 
         // then, find flattened centroid positions
@@ -93,7 +86,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 max_kmeans_threads,
                 &stop_condition,
             )?,
-            CentroidsParameters::Custom { centroids, .. } => centroids,
+            CentroidsParameters::Custom { codebook } => Self::convert_codebook(&codebook).0,
         };
 
         // finally, encode data
@@ -138,6 +131,32 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .step_by(chunk_size)
             .map(|i| i..std::cmp::min(i + chunk_size, dim))
             .collect()
+    }
+
+    fn convert_codebook(codebook: &[Vec<Vec<f32>>]) -> (Vec<Vec<f32>>, Vec<Range<usize>>) {
+        let centroids_count = codebook[0].len();
+        assert_eq!(centroids_count, 256);
+        let division_len = codebook.len();
+        let mut vector_division: Vec<Range<usize>> = vec![];
+        for i in 0..division_len {
+            let chunk_size = codebook[i][0].len();
+            let start = vector_division.last().map(|x| x.end).unwrap_or(0);
+            let range = start..start + chunk_size;
+            vector_division.push(range);
+        }
+        let dim = vector_division.last().map(|x| x.end).unwrap_or(0);
+
+        let mut centroids = vec![];
+        for i in 0..centroids_count {
+            let mut centroid = vec![];
+            for j in 0..division_len {
+                centroid.extend_from_slice(&codebook[j][i]);
+            }
+            assert_eq!(centroid.len(), dim);
+            centroids.push(centroid);
+        }
+
+        (centroids, vector_division)
     }
 
     /// Encode whole storage
