@@ -121,11 +121,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
     pub fn get_quantized_vector_size(
         vector_parameters: &VectorParameters,
-        centroid_parameters: CentroidsParameters,
+        centroid_parameters: &CentroidsParameters,
     ) -> usize {
         match centroid_parameters {
             CentroidsParameters::KMeans { chunk_size } => {
-                (0..vector_parameters.dim).step_by(chunk_size).count()
+                (0..vector_parameters.dim).step_by(*chunk_size).count()
             }
             CentroidsParameters::Custom { codebook } => codebook.len(),
         }
