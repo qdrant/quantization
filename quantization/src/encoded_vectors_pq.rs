@@ -73,7 +73,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             CentroidsParameters::KMeans { chunk_size } => {
                 Self::get_vector_division(vector_parameters.dim, *chunk_size)
             }
-            CentroidsParameters::Custom { codebook } => Self::convert_codebook(codebook).1,
+            CentroidsParameters::Custom { codebook } => {
+                Self::get_vector_division_from_codebook(codebook, vector_parameters.dim)?
+            }
         };
 
         // then, find flattened centroid positions
@@ -86,7 +88,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                 max_kmeans_threads,
                 &stop_condition,
             )?,
-            CentroidsParameters::Custom { codebook } => Self::convert_codebook(&codebook).0,
+            CentroidsParameters::Custom { codebook } => {
+                Self::get_centroids_from_codebook(&codebook, vector_parameters.dim)?
+            }
         };
 
         // finally, encode data
@@ -155,12 +159,10 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect()
     }
 
-    /// Convert cobebook format into internal centroid format
-    /// Internal format is a flattened centroids
-    /// Codebook format is a vector of centroids chunks
-    fn convert_codebook(codebook: &[Vec<Vec<f32>>]) -> (Vec<Vec<f32>>, Vec<Range<usize>>) {
-        let centroids_count = codebook[0].len();
-        assert_eq!(centroids_count, 256);
+    fn get_vector_division_from_codebook(
+        codebook: &[Vec<Vec<f32>>],
+        dim: usize,
+    ) -> Result<Vec<Range<usize>>, EncodingError> {
         let mut vector_division: Vec<Range<usize>> = vec![];
         for chunk_centroids in codebook {
             let chunk_size = chunk_centroids[0].len();
@@ -168,7 +170,27 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             let range = start..start + chunk_size;
             vector_division.push(range);
         }
-        let dim = vector_division.last().map(|x| x.end).unwrap_or(0);
+        if vector_division.last().map(|x| x.end).unwrap_or(0) == dim {
+            Ok(vector_division)
+        } else {
+            Err(EncodingError::ArgumentsError(format!(
+                "Codebook does not match vector dimension {}",
+                dim
+            )))
+        }
+    }
+
+    fn get_centroids_from_codebook(
+        codebook: &[Vec<Vec<f32>>],
+        dim: usize,
+    ) -> Result<Vec<Vec<f32>>, EncodingError> {
+        let centroids_count = codebook[0].len();
+        if centroids_count != 256 {
+            return Err(EncodingError::ArgumentsError(format!(
+                "Centroids count in codebook {} does not equal 256",
+                centroids_count
+            )));
+        }
 
         let mut centroids = vec![];
         for i in 0..centroids_count {
@@ -180,7 +202,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             centroids.push(centroid);
         }
 
-        (centroids, vector_division)
+        Ok(centroids)
     }
 
     /// Encode whole storage
