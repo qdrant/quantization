@@ -131,6 +131,23 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         }
     }
 
+    /// Get codebook. Converts internal centroid format into codebook format
+    pub fn get_codebook(&self) -> Vec<Vec<Vec<f32>>> {
+        let mut result = vec![];
+        for range in &self.metadata.vector_division {
+            let mut chunk_centroids = vec![];
+            for i in 0..self.metadata.centroids.len() {
+                chunk_centroids.push(self.metadata.centroids[i][range.clone()].to_owned());
+            }
+            result.push(chunk_centroids);
+        }
+        result
+    }
+
+    pub fn get_encoded_vectors(&self) -> &TStorage {
+        &self.encoded_vectors
+    }
+
     fn get_vector_division(dim: usize, chunk_size: usize) -> Vec<Range<usize>> {
         (0..dim)
             .step_by(chunk_size)
@@ -138,13 +155,15 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .collect()
     }
 
+    /// Convert cobebook format into internal centroid format
+    /// Internal format is a flattened centroids
+    /// Codebook format is a vector of centroids chunks
     fn convert_codebook(codebook: &[Vec<Vec<f32>>]) -> (Vec<Vec<f32>>, Vec<Range<usize>>) {
         let centroids_count = codebook[0].len();
         assert_eq!(centroids_count, 256);
-        let division_len = codebook.len();
         let mut vector_division: Vec<Range<usize>> = vec![];
-        for i in 0..division_len {
-            let chunk_size = codebook[i][0].len();
+        for chunk_centroids in codebook {
+            let chunk_size = chunk_centroids[0].len();
             let start = vector_division.last().map(|x| x.end).unwrap_or(0);
             let range = start..start + chunk_size;
             vector_division.push(range);
@@ -154,8 +173,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         let mut centroids = vec![];
         for i in 0..centroids_count {
             let mut centroid = vec![];
-            for j in 0..division_len {
-                centroid.extend_from_slice(&codebook[j][i]);
+            for chunk_centroids in codebook {
+                centroid.extend_from_slice(&chunk_centroids[i]);
             }
             assert_eq!(centroid.len(), dim);
             centroids.push(centroid);

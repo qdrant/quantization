@@ -205,6 +205,50 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_custom_centroids() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<_>> = vec![];
+        for _ in 0..VECTORS_COUNT {
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
+        }
+
+        let encoded = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::Dot,
+                invert: true,
+            },
+            CentroidsParameters::KMeans { chunk_size: 1 },
+            1,
+            || false,
+        )
+        .unwrap();
+        let codebook = encoded.get_codebook();
+
+        let encoded_custom = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::Dot,
+                invert: true,
+            },
+            CentroidsParameters::Custom { codebook },
+            1,
+            || false,
+        )
+        .unwrap();
+
+        let data_orig = encoded.get_encoded_vectors().to_owned();
+        let data_custom = encoded_custom.get_encoded_vectors().to_owned();
+        assert_eq!(data_orig, data_custom);
+    }
+
     // ignore this test because it requires long time
     // this test should be started separately of with `--test-threads=1` flag
     // because `num_threads::num_threads()` is used to check that all encode threads finished
