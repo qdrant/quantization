@@ -22,7 +22,7 @@ pub(crate) fn find_quantile_interval<'a>(
     count: usize,
     quantile: f32,
 ) -> Option<(f32, f32)> {
-    if count < 127 {
+    if count < 127 || quantile >= 1.0 {
         return None;
     }
 
@@ -44,10 +44,15 @@ pub(crate) fn find_quantile_interval<'a>(
     }
 
     let data_slice_len = data_slice.len();
+    if data_slice_len < 4 {
+        return None;
+    }
+
     let cut_index = std::cmp::min(
-        (data_slice.len() - 1) / 2,
+        (data_slice_len - 1) / 2,
         (slice_size as f32 * (1.0 - quantile) / 2.0) as usize,
     );
+    let cut_index = std::cmp::max(cut_index, 1);
     let comparator = |a: &f32, b: &f32| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal);
     let (selected_values, _, _) =
         data_slice.select_nth_unstable_by(data_slice_len - cut_index, comparator);
