@@ -228,4 +228,40 @@ mod tests {
             assert!((score - orginal_score).abs() < error);
         }
     }
+
+    #[test]
+    fn test_u8_large_quantile() {
+        let vectors_count = 129;
+        let vector_dim = 65;
+        let error = vector_dim as f32 * 0.1;
+
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<f32>> = Vec::new();
+        for _ in 0..vectors_count {
+            let vector: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
+            vector_data.push(vector);
+        }
+        let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
+
+        let encoded = EncodedVectorsU8::encode(
+            vector_data.iter().map(|v| v.as_slice()),
+            Vec::<u8>::new(),
+            &VectorParameters {
+                dim: vector_dim,
+                count: vectors_count,
+                distance_type: DistanceType::Dot,
+                invert: false,
+            },
+            Some(1.0 - f32::EPSILON), // almost 1.0 value, but not 1.0
+            || false,
+        )
+        .unwrap();
+        let query_u8 = encoded.encode_query(&query);
+
+        for (index, vector) in vector_data.iter().enumerate() {
+            let score = encoded.score_point_simple(&query_u8, index as u32);
+            let orginal_score = dot_similarity(&query, vector);
+            assert!((score - orginal_score).abs() < error);
+        }
+    }
 }
