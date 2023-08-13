@@ -1,8 +1,10 @@
-use std::path::Path;
-use serde::{Deserialize, Serialize};
-use crate::{EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError, VectorParameters};
 use crate::encoded_vectors::validate_vector_parameters;
 use crate::utils::{transmute_from_u8_to_slice, transmute_to_u8_slice};
+use crate::{
+    EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError, VectorParameters,
+};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 type BitsStoreType = u128;
 
@@ -11,13 +13,11 @@ const BITS_STORE_TYPE_SIZE: usize = std::mem::size_of::<BitsStoreType>() * 8;
 pub struct EncodedVectorsBin<TStorage: EncodedStorage> {
     encoded_vectors: TStorage,
     metadata: Metadata,
-
 }
 
 pub struct EncodedBinVector {
     encoded_vector: Vec<BitsStoreType>,
 }
-
 
 #[derive(Serialize, Deserialize)]
 struct Metadata {
@@ -26,7 +26,7 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl Iterator<Item=&'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         stop_condition: impl Fn() -> bool,
@@ -44,14 +44,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             storage_builder.push_vector_data(bytes);
         }
 
-        Ok(
-            Self {
-                encoded_vectors: storage_builder.build(),
-                metadata: Metadata {
-                    vector_parameters: vector_parameters.clone(),
-                },
-            }
-        )
+        Ok(Self {
+            encoded_vectors: storage_builder.build(),
+            metadata: Metadata {
+                vector_parameters: vector_parameters.clone(),
+            },
+        })
     }
 
     fn _encode_vector(vector: &[f32]) -> EncodedBinVector {
@@ -63,11 +61,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             }
         }
 
-        EncodedBinVector {
-            encoded_vector,
-        }
+        EncodedBinVector { encoded_vector }
     }
-
 
     /// Xor vectors and return the number of bits set to 1
     ///
@@ -81,7 +76,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         }
         result
     }
-
 
     /// Estimates how many `StorageType` elements are needed to store `size` bits
     fn get_storage_size(size: usize) -> usize {
@@ -134,7 +128,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     }
 }
 
-
 impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVectorsBin<TStorage> {
     fn save(&self, data_path: &Path, meta_path: &Path) -> std::io::Result<()> {
         let metadata_bytes = serde_json::to_vec(&self.metadata)?;
@@ -146,7 +139,11 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
         Ok(())
     }
 
-    fn load(data_path: &Path, meta_path: &Path, vector_parameters: &VectorParameters) -> std::io::Result<Self> {
+    fn load(
+        data_path: &Path,
+        meta_path: &Path,
+        vector_parameters: &VectorParameters,
+    ) -> std::io::Result<Self> {
         let contents = std::fs::read_to_string(meta_path)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
         let quantized_vector_size = Self::get_quantized_vector_size(vector_parameters);
@@ -165,15 +162,21 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
     }
 
     fn score_point(&self, query: &EncodedBinVector, i: u32) -> f32 {
-        let vector_data_1 = self.encoded_vectors.get_vector_data(i as _, self.get_vector_size_bytes());
+        let vector_data_1 = self
+            .encoded_vectors
+            .get_vector_data(i as _, self.get_vector_size_bytes());
         let vector_data_usize_1 = transmute_from_u8_to_slice(vector_data_1);
 
         self.calculate_metric(vector_data_usize_1, &query.encoded_vector)
     }
 
     fn score_internal(&self, i: u32, j: u32) -> f32 {
-        let vector_data_1 = self.encoded_vectors.get_vector_data(i as _, self.get_vector_size_bytes());
-        let vector_data_2 = self.encoded_vectors.get_vector_data(j as _, self.get_vector_size_bytes());
+        let vector_data_1 = self
+            .encoded_vectors
+            .get_vector_data(i as _, self.get_vector_size_bytes());
+        let vector_data_2 = self
+            .encoded_vectors
+            .get_vector_data(j as _, self.get_vector_size_bytes());
 
         let vector_data_usize_1 = transmute_from_u8_to_slice(vector_data_1);
         let vector_data_usize_2 = transmute_from_u8_to_slice(vector_data_2);
@@ -182,7 +185,5 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
     }
 }
 
-
 #[cfg(test)]
 mod tests {}
-
