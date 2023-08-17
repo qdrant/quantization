@@ -55,8 +55,10 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     fn _encode_vector(vector: &[f32]) -> EncodedBinVector {
         let mut encoded_vector = vec![0; Self::get_storage_size(vector.len())];
 
-        for i in 0..vector.len() {
-            if vector[i] > 0.0 {
+        for (i, &v) in vector.iter().enumerate() {
+            // flag is true if the value is positive
+            // It's expected that the vector value is in range [-1; 1]
+            if v > 0.0 {
                 encoded_vector[i / BITS_STORE_TYPE_SIZE] |= 1 << (i % BITS_STORE_TYPE_SIZE);
             }
         }
@@ -184,6 +186,3 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
         self.calculate_metric(vector_data_usize_1, vector_data_usize_2)
     }
 }
-
-#[cfg(test)]
-mod tests {}
