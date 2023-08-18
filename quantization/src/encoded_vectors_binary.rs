@@ -73,8 +73,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     fn xor_product(v1: &[BitsStoreType], v2: &[BitsStoreType]) -> usize {
         debug_assert!(v1.len() == v2.len());
         let mut result = 0;
-        for i in 0..v1.len() {
-            result += (v1[i] ^ v2[i]).count_ones() as usize;
+        for (b1, b2) in v1.iter().zip(v2.iter()) {
+            result += (b1 ^ b2).count_ones() as usize;
         }
         result
     }
@@ -122,10 +122,11 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
 
         // So is `invert` is true, we return XOR, otherwise we return (dim - XOR)
 
+        let zeros_count = self.metadata.vector_parameters.dim - xor_product;
         if self.metadata.vector_parameters.invert {
-            xor_product as f32
+            xor_product as f32 - zeros_count as f32
         } else {
-            (self.metadata.vector_parameters.dim - xor_product) as f32
+            zeros_count as f32 - xor_product as f32
         }
     }
 }
