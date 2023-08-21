@@ -88,18 +88,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         result
     }
 
-    /// Get the size of the whole vector storage in bytes
-    fn get_quantized_vector_size(vector_parameters: &VectorParameters) -> usize {
-        let actual_dim = Self::get_vector_size_bytes_from_params(vector_parameters);
-        actual_dim * vector_parameters.count
-    }
-
-    fn get_vector_size_bytes_from_params(vector_parameters: &VectorParameters) -> usize {
+    pub fn get_quantized_vector_size_from_params(vector_parameters: &VectorParameters) -> usize {
         Self::get_storage_size(vector_parameters.dim) * std::mem::size_of::<BitsStoreType>()
     }
 
-    fn get_vector_size_bytes(&self) -> usize {
-        Self::get_vector_size_bytes_from_params(&self.metadata.vector_parameters)
+    fn get_quantized_vector_size(&self) -> usize {
+        Self::get_quantized_vector_size_from_params(&self.metadata.vector_parameters)
     }
 
     fn calculate_metric(&self, v1: &[BitsStoreType], v2: &[BitsStoreType]) -> f32 {
@@ -149,7 +143,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
     ) -> std::io::Result<Self> {
         let contents = std::fs::read_to_string(meta_path)?;
         let metadata: Metadata = serde_json::from_str(&contents)?;
-        let quantized_vector_size = Self::get_quantized_vector_size(vector_parameters);
+        let quantized_vector_size = Self::get_quantized_vector_size_from_params(vector_parameters);
         let encoded_vectors =
             TStorage::from_file(data_path, quantized_vector_size, vector_parameters.count)?;
         let result = Self {
@@ -167,7 +161,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
     fn score_point(&self, query: &EncodedBinVector, i: u32) -> f32 {
         let vector_data_1 = self
             .encoded_vectors
-            .get_vector_data(i as _, self.get_vector_size_bytes());
+            .get_vector_data(i as _, self.get_quantized_vector_size());
         let vector_data_usize_1 = transmute_from_u8_to_slice(vector_data_1);
 
         self.calculate_metric(vector_data_usize_1, &query.encoded_vector)
@@ -176,10 +170,10 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
     fn score_internal(&self, i: u32, j: u32) -> f32 {
         let vector_data_1 = self
             .encoded_vectors
-            .get_vector_data(i as _, self.get_vector_size_bytes());
+            .get_vector_data(i as _, self.get_quantized_vector_size());
         let vector_data_2 = self
             .encoded_vectors
-            .get_vector_data(j as _, self.get_vector_size_bytes());
+            .get_vector_data(j as _, self.get_quantized_vector_size());
 
         let vector_data_usize_1 = transmute_from_u8_to_slice(vector_data_1);
         let vector_data_usize_2 = transmute_from_u8_to_slice(vector_data_2);
