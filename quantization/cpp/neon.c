@@ -21,3 +21,23 @@ EXPORT float impl_score_dot_neon(
     }
     return (float)vaddvq_u32(vaddq_u32(mul1, mul2));
 }
+
+EXPORT uint64_t impl_xor_popcnt_neon(
+    const uint64_t* query_ptr,
+    const uint64_t* vector_ptr,
+    uint32_t count
+) {
+    const uint8_t* v_ptr = (const uint8_t*)vector_ptr;
+    const uint8_t* q_ptr = (const uint8_t*)query_ptr;
+    uint64_t result = 0;
+    for (uint32_t _i = 0; _i < count; _i++) {
+        uint8x16_t v = vld1q_u8(v_ptr);
+        uint8x16_t q = vld1q_u8(q_ptr);
+        uint8x16_t x = veorq_u8(q, v);
+        uint8x16_t popcnt = vcntq_u8(x);
+        result += vaddvq_u8(popcnt);
+        v_ptr += 16;
+        q_ptr += 16;
+    }
+    return result;
+}

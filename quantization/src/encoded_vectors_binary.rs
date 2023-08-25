@@ -84,6 +84,17 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             }
         }
 
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        if std::arch::is_aarch64_feature_detected!("neon") {
+            unsafe {
+                return impl_xor_popcnt_neon(
+                    v1.as_ptr() as *const u64,
+                    v2.as_ptr() as *const u64,
+                    v1.len() as u32,
+                ) as usize;
+            }
+        }
+
         let mut result = 0;
         for (b1, b2) in v1.iter().zip(v2.iter()) {
             result += (b1 ^ b2).count_ones() as usize;
@@ -197,4 +208,9 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
 #[cfg(target_arch = "x86_64")]
 extern "C" {
     fn impl_xor_popcnt_sse(query_ptr: *const u64, vector_ptr: *const u64, count: u32) -> u32;
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+extern "C" {
+    fn impl_xor_popcnt_neon(query_ptr: *const u64, vector_ptr: *const u64, count: u32) -> u32;
 }
