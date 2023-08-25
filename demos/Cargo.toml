@@ -43,3 +43,7 @@ harness = false
 [[bench]]
 name = "pq"
 harness = false
+
+[[bench]]
+name = "binary"
+harness = false
