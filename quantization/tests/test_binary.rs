@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn test_binary_dot() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 128;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
