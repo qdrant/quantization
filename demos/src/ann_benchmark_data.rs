@@ -57,7 +57,7 @@ impl AnnBenchmarkData {
         let neighbors = neighbors
             .rows()
             .into_iter()
-            .zip(neighbor_distances.rows().into_iter())
+            .zip(neighbor_distances.rows())
             .map(|(neighbors, neighbor_distances)| {
                 neighbors
                     .iter()

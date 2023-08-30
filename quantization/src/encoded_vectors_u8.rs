@@ -166,7 +166,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_sse(
-                query.encoded_query.as_ptr() as *const u8,
+                query.encoded_query.as_ptr(),
                 v_ptr,
                 self.metadata.actual_dim as u32,
             );
@@ -179,7 +179,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         unsafe {
             let (vector_offset, v_ptr) = self.get_vec_ptr(i);
             let score = impl_score_dot_avx(
-                query.encoded_query.as_ptr() as *const u8,
+                query.encoded_query.as_ptr(),
                 v_ptr,
                 self.metadata.actual_dim as u32,
             );
@@ -295,7 +295,7 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedQueryU8> for EncodedVectors
     }
 
     fn score_point(&self, query: &EncodedQueryU8, i: u32) -> f32 {
-        let q_ptr = query.encoded_query.as_ptr() as *const u8;
+        let q_ptr = query.encoded_query.as_ptr();
         let (vector_offset, v_ptr) = self.get_vec_ptr(i);
 
         #[cfg(target_arch = "x86_64")]
