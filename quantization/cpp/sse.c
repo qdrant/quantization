@@ -45,7 +45,7 @@ EXPORT uint64_t impl_xor_popcnt_sse(
     const int64_t* v_ptr = (const int64_t*)vector_ptr;
     const int64_t* q_ptr = (const int64_t*)query_ptr;
     int64_t result = 0;
-    for (uint32_t _i = 0; _i < count; _i++) {
+    for (uint32_t _i = 0; _i < 2 * count; _i++) {
         uint64_t x = (*v_ptr) ^ (*q_ptr);
         result += _mm_popcnt_u64(x);
         v_ptr++;

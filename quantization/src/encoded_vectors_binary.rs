@@ -79,7 +79,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
                 return impl_xor_popcnt_sse(
                     v1.as_ptr() as *const u64,
                     v2.as_ptr() as *const u64,
-                    2 * v1.len() as u32,
+                    v1.len() as u32,
                 ) as usize;
             }
         }
