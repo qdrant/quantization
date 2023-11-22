@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <arm_neon.h>
 
 #include "export_macro.h"
