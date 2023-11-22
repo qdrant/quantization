@@ -68,8 +68,8 @@ EXPORT float impl_score_l1_sse(
     const uint8_t* vector_ptr,
     uint32_t dim
 ) {
-    const __m128i_u* v_ptr = (const __m128i_u*)vector_ptr;
-    const __m128i_u* q_ptr = (const __m128i_u*)query_ptr;
+    const __m128i* v_ptr = (const __m128i*)vector_ptr;
+    const __m128i* q_ptr = (const __m128i*)query_ptr;
 
     uint32_t m = dim - (dim % 16);
     __m128i sum128 = _mm_setzero_si128();
