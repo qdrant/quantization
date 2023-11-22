@@ -10,7 +10,7 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
 
-    use crate::metrics::{dot_similarity, l2_similarity, l1_similarity};
+    use crate::metrics::{dot_similarity, l1_similarity, l2_similarity};
 
     #[test]
     fn test_dot_neon() {

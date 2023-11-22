@@ -1,7 +1,9 @@
 use crate::encoded_vectors::validate_vector_parameters;
+use crate::quantile::find_min_max_from_iter;
 use crate::utils::{transmute_from_u8_to_slice, transmute_to_u8_slice};
 use crate::{
-    EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError, VectorParameters,
+    DistanceType, EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError,
+    VectorParameters,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -22,6 +24,7 @@ pub struct EncodedBinVector {
 #[derive(Serialize, Deserialize)]
 struct Metadata {
     vector_parameters: VectorParameters,
+    alpha: f32,
 }
 
 impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
@@ -32,6 +35,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         stop_condition: impl Fn() -> bool,
     ) -> Result<Self, EncodingError> {
         debug_assert!(validate_vector_parameters(orig_data.clone(), vector_parameters).is_ok());
+
+        let (alpha, _) = Self::find_alpha_offset_size_dim(orig_data.clone());
 
         for vector in orig_data {
             if stop_condition() {
@@ -48,6 +53,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             encoded_vectors: storage_builder.build(),
             metadata: Metadata {
                 vector_parameters: vector_parameters.clone(),
+                alpha,
             },
         })
     }
@@ -123,28 +129,52 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         let xor_product = Self::xor_product(v1, v2);
 
         // Dot product in a range [-1; 1] is approximated by NXOR in a range [0; 1]
+        // L1 distance in range [-1; 1] (alpha=2) is approximated by alpha*XOR in a range [0; 1]
+        // L2 distance in range [-1; 1] (alpha=2) is approximated by alpha*sqrt(XOR) in a range [0; 1]
+        // L2 distance is implemented as L2^2 in u8 quantization, so this implementation matches that
         // For example:
 
-        // A    |   B   | Dot product
-        // -0.5 | -0.5  |  0.25
-        // -0.5 |  0.5  | -0.25
-        //  0.5 | -0.5  | -0.25
-        //  0.5 |  0.5  |  0.25
+        // A    |   B   | Dot product | L1 | L2 |
+        // -0.5 | -0.5  |  0.25       | 0  | 0  |
+        // -0.5 |  0.5  | -0.25       | 1  | 1  |
+        //  0.5 | -0.5  | -0.25       | 1  | 1  |
+        //  0.5 |  0.5  |  0.25       | 0  | 0  |
 
-        // A | B  |  NXOR
-        // 0 | 0  |  1
-        // 0 | 1  |  0
-        // 1 | 0  |  0
-        // 1 | 1  |  1
+        // A | B  |  NXOR | XOR
+        // 0 | 0  |  1    | 0
+        // 0 | 1  |  0    | 1
+        // 1 | 0  |  0    | 1
+        // 1 | 1  |  1    | 0
 
         // So is `invert` is true, we return XOR, otherwise we return (dim - XOR)
 
         let zeros_count = self.metadata.vector_parameters.dim - xor_product;
         if self.metadata.vector_parameters.invert {
-            xor_product as f32 - zeros_count as f32
+            match self.metadata.vector_parameters.distance_type {
+                DistanceType::Dot => xor_product as f32 - zeros_count as f32,
+                DistanceType::L1 => self.metadata.alpha * xor_product as f32,
+                DistanceType::L2 => self.metadata.alpha * self.metadata.alpha * xor_product as f32,
+            }
         } else {
-            zeros_count as f32 - xor_product as f32
+            match self.metadata.vector_parameters.distance_type {
+                DistanceType::Dot => zeros_count as f32 - xor_product as f32,
+                DistanceType::L1 => 1.0 / (self.metadata.alpha * xor_product as f32),
+                DistanceType::L2 => {
+                    1.0 / (self.metadata.alpha * self.metadata.alpha * xor_product as f32)
+                }
+            }
         }
+    }
+
+    fn find_alpha_offset_size_dim<'a>(orig_data: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+        let (min, max) = find_min_max_from_iter(orig_data);
+        Self::alpha_offset_from_min_max(min, max)
+    }
+
+    fn alpha_offset_from_min_max(min: f32, max: f32) -> (f32, f32) {
+        let alpha = max - min;
+        let offset = min;
+        (alpha, offset)
     }
 }
 
