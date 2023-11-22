@@ -6,6 +6,7 @@ use crate::EncodingError;
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DistanceType {
     Dot,
+    L1,
     L2,
 }
 
@@ -37,6 +38,7 @@ impl DistanceType {
     pub fn distance(&self, a: &[f32], b: &[f32]) -> f32 {
         match self {
             DistanceType::Dot => a.iter().zip(b.iter()).map(|(a, b)| a * b).sum(),
+            DistanceType::L1 => a.iter().zip(b.iter()).map(|(a, b)| (a - b).abs()).sum(),
             DistanceType::L2 => a.iter().zip(b.iter()).map(|(a, b)| (a - b) * (a - b)).sum(),
         }
     }

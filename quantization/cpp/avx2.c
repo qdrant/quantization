@@ -12,6 +12,15 @@
     R = _mm_cvtss_f32(x32); \
     }
 
+#define HSUM256_EPI32(X, R) \
+    int R = 0; \
+    { \
+    __m128i x128 = _mm_add_epi32(_mm256_extractf128_si256(X, 1), _mm256_castsi256_si128(X)); \
+    __m128i x64 = _mm_add_epi32(x128, _mm_srli_si128(x128, 8)); \
+    __m128i x32 = _mm_add_epi32(x64, _mm_srli_si128(x64, 4)); \
+    R = _mm_cvtsi128_si32(x32); \
+    }
+
 EXPORT float impl_score_dot_avx(
     const uint8_t* query_ptr,
     const uint8_t* vector_ptr,
@@ -48,4 +57,48 @@ EXPORT float impl_score_dot_avx(
     __m256 mul_ps = _mm256_cvtepi32_ps(mul1);
     HSUM256_PS(mul_ps, mul_scalar);
     return mul_scalar;
+}
+
+EXPORT float impl_score_l1_avx(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t dim
+) {
+    const __m256i* v_ptr = (const __m256i*)vector_ptr;
+    const __m256i* q_ptr = (const __m256i*)query_ptr;
+
+    uint32_t m = dim - (dim % 32);
+    __m256i sum256 = _mm256_setzero_si256();
+
+    for (uint32_t i = 0; i < m; i += 32) {
+        __m256i vec1 = _mm256_loadu_si256(v_ptr);
+        __m256i vec2 = _mm256_loadu_si256(q_ptr);
+        v_ptr++;
+        q_ptr++;
+
+        // Compute the difference in both directions and take the maximum for abs
+        __m256i diff1 = _mm256_subs_epu8(vec1, vec2);
+        __m256i diff2 = _mm256_subs_epu8(vec2, vec1);
+
+        __m256i abs_diff = _mm256_max_epu8(diff1, diff2);
+
+        __m256i abs_diff16_lo = _mm256_unpacklo_epi8(abs_diff, _mm256_setzero_si256());
+        __m256i abs_diff16_hi = _mm256_unpackhi_epi8(abs_diff, _mm256_setzero_si256());
+
+        sum256 = _mm256_add_epi16(sum256, abs_diff16_lo);
+        sum256 = _mm256_add_epi16(sum256, abs_diff16_hi);
+    }
+
+    __m256i sum_epi32 = _mm256_add_epi32(
+        _mm256_unpacklo_epi16(sum256, _mm256_setzero_si256()),
+        _mm256_unpackhi_epi16(sum256, _mm256_setzero_si256()));
+
+    HSUM256_EPI32(sum_epi32, sum);
+
+    // Sum the remaining elements
+    for (uint32_t i = m; i < dim; ++i) {
+        sum += abs(query_ptr[i] - vector_ptr[i]);
+    }
+
+    return (float) sum;
 }
