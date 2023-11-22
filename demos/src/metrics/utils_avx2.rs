@@ -59,7 +59,7 @@ pub unsafe fn dot_avx(v1: &[f32], v2: &[f32]) -> f32 {
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "fma")]
-#[allow(clippy::missing_safety_doc)]
+#[allow(clippy::missing_safety_doc, dead_code)]
 pub unsafe fn l1_avx(v1: &[f32], v2: &[f32]) -> f32 {
     let mask: __m256 = _mm256_set1_ps(-0.0f32); // 1 << 31 used to clear sign bit to mimic abs
 
