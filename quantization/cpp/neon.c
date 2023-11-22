@@ -80,8 +80,6 @@ EXPORT float impl_score_l1_neon(
     for (uint32_t i = 0; i < m; i += 16) {
         uint8x16_t vec1 = vld1q_u8(v_ptr);
         uint8x16_t vec2 = vld1q_u8(q_ptr);
-        v_ptr++;
-        q_ptr++;
 
         uint8x16_t abs_diff = vabdq_u8(vec1, vec2);
         uint16x8_t abs_diff16_low = vmovl_u8(vget_low_u8(abs_diff));
@@ -89,6 +87,9 @@ EXPORT float impl_score_l1_neon(
 
         sum16_low = vaddq_u16(sum16_low, abs_diff16_low);
         sum16_high = vaddq_u16(sum16_high, abs_diff16_high);
+
+        v_ptr += 16;
+        q_ptr += 16;
     }
 
     // Horizontal sum of 16-bit integers
