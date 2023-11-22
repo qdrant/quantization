@@ -24,7 +24,7 @@ pub struct EncodedBinVector {
 #[derive(Serialize, Deserialize)]
 struct Metadata {
     vector_parameters: VectorParameters,
-    alpha: f32,
+    alpha: Option<f32>,
 }
 
 impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
@@ -53,7 +53,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             encoded_vectors: storage_builder.build(),
             metadata: Metadata {
                 vector_parameters: vector_parameters.clone(),
-                alpha,
+                alpha: Some(alpha),
             },
         })
     }
@@ -148,20 +148,20 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
 
         // So is `invert` is true, we return XOR, otherwise we return (dim - XOR)
 
+        let alpha = self.metadata.alpha.unwrap_or(1.0);
+
         let zeros_count = self.metadata.vector_parameters.dim - xor_product;
         if self.metadata.vector_parameters.invert {
             match self.metadata.vector_parameters.distance_type {
                 DistanceType::Dot => xor_product as f32 - zeros_count as f32,
-                DistanceType::L1 => self.metadata.alpha * xor_product as f32,
-                DistanceType::L2 => self.metadata.alpha * self.metadata.alpha * xor_product as f32,
+                DistanceType::L1 => alpha * xor_product as f32,
+                DistanceType::L2 => alpha * alpha * xor_product as f32,
             }
         } else {
             match self.metadata.vector_parameters.distance_type {
                 DistanceType::Dot => zeros_count as f32 - xor_product as f32,
-                DistanceType::L1 => 1.0 / (self.metadata.alpha * xor_product as f32),
-                DistanceType::L2 => {
-                    1.0 / (self.metadata.alpha * self.metadata.alpha * xor_product as f32)
-                }
+                DistanceType::L1 => 1.0 / (alpha * xor_product as f32),
+                DistanceType::L2 => 1.0 / (alpha * alpha * xor_product as f32),
             }
         }
     }
