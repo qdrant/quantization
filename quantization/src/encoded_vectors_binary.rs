@@ -139,9 +139,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         // 1 | 0  |  0    | 1
         // 1 | 1  |  1    | 0
 
-        // So if `invert` is true we return XOR, otherwise we return (dim - XOR) for Dot
-        // the similarity (inverse) exponentially decays between dim -> 0 for L1 and L2 distances
-        // hardcoded alpha = 2 for [-1; 1]
+        // So if `invert` is true we return XOR, otherwise we return (dim - XOR)
 
         let xor_product = Self::xor_product(v1, v2) as f32;
 
@@ -154,10 +152,8 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         ) {
             (DistanceType::Dot, false) => zeros_count - xor_product,
             (DistanceType::Dot, true) => xor_product - zeros_count,
-            (DistanceType::L1, false) => 2.0 * xor_product,
-            (DistanceType::L1, true) => dim * (-2.0 * xor_product).exp(),
-            (DistanceType::L2, false) => 4.0 * xor_product,
-            (DistanceType::L2, true) => dim * (-4.0 * xor_product).exp(),
+            (DistanceType::L1 | DistanceType::L2, false) => xor_product - zeros_count,
+            (DistanceType::L1 | DistanceType::L2, true) => zeros_count - xor_product,
         }
     }
 }

@@ -166,7 +166,6 @@ mod tests {
     fn test_binary_l1() {
         let vectors_count = 128;
         let vector_dim = 3 * 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -189,20 +188,35 @@ mod tests {
         .unwrap();
 
         let query: Vec<f32> = generate_vector(vector_dim, &mut rng);
-        let query_u8 = encoded.encode_query(&query);
+        let query_b = encoded.encode_query(&query);
 
-        for (index, vector) in vector_data.iter().enumerate() {
-            let score = encoded.score_point(&query_u8, index as u32);
-            let orginal_score = l1_similarity(&query, vector);
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_point(&query_b, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l1_similarity(&query, v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l1_inverted() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -225,20 +239,35 @@ mod tests {
         .unwrap();
 
         let query: Vec<f32> = generate_vector(vector_dim, &mut rng);
-        let query_u8 = encoded.encode_query(&query);
+        let query_b = encoded.encode_query(&query);
 
-        for (index, vector) in vector_data.iter().enumerate() {
-            let score = encoded.score_point(&query_u8, index as u32);
-            let orginal_score = (-l1_similarity(&query, vector)).exp();
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_point(&query_b, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l1_similarity(&query, v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l1_internal() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -260,18 +289,33 @@ mod tests {
         )
         .unwrap();
 
-        for i in 1..vectors_count {
-            let score = encoded.score_internal(0, i as u32);
-            let orginal_score = l1_similarity(&vector_data[0], &vector_data[i]);
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_internal(0, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l1_similarity(&vector_data[0], v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l1_inverted_internal() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -293,18 +337,33 @@ mod tests {
         )
         .unwrap();
 
-        for i in 1..vectors_count {
-            let score = encoded.score_internal(0, i as u32);
-            let orginal_score = (-l1_similarity(&vector_data[0], &vector_data[i])).exp();
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_internal(0, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l1_similarity(&vector_data[0], v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l2() {
         let vectors_count = 128;
         let vector_dim = 3 * 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -327,20 +386,35 @@ mod tests {
         .unwrap();
 
         let query: Vec<f32> = generate_vector(vector_dim, &mut rng);
-        let query_u8 = encoded.encode_query(&query);
+        let query_b = encoded.encode_query(&query);
 
-        for (index, vector) in vector_data.iter().enumerate() {
-            let score = encoded.score_point(&query_u8, index as u32);
-            let orginal_score = l2_similarity(&query, vector);
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_point(&query_b, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l2_similarity(&query, v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l2_inverted() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -363,20 +437,35 @@ mod tests {
         .unwrap();
 
         let query: Vec<f32> = generate_vector(vector_dim, &mut rng);
-        let query_u8 = encoded.encode_query(&query);
+        let query_b = encoded.encode_query(&query);
 
-        for (index, vector) in vector_data.iter().enumerate() {
-            let score = encoded.score_point(&query_u8, index as u32);
-            let orginal_score = (-l2_similarity(&query, vector)).exp();
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_point(&query_b, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l2_similarity(&query, v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l2_internal() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -398,18 +487,33 @@ mod tests {
         )
         .unwrap();
 
-        for i in 1..vectors_count {
-            let score = encoded.score_internal(0, i as u32);
-            let orginal_score = l2_similarity(&vector_data[0], &vector_data[i]);
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_internal(0, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l2_similarity(&vector_data[0], v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 
     #[test]
     fn test_binary_l2_inverted_internal() {
         let vectors_count = 128;
         let vector_dim = 128;
-        let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -431,10 +535,26 @@ mod tests {
         )
         .unwrap();
 
-        for i in 1..vectors_count {
-            let score = encoded.score_internal(0, i as u32);
-            let orginal_score = (-l2_similarity(&vector_data[0], &vector_data[i])).exp();
-            assert!((score - orginal_score).abs() < error);
-        }
+        let mut scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, _)| (encoded.score_internal(0, i as u32), i))
+            .collect();
+
+        scores.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        let sorted_indices: Vec<_> = scores.into_iter().map(|(_, i)| i).collect();
+
+        let mut original_scores: Vec<_> = vector_data
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (l1_similarity(&vector_data[0], v), i))
+            .collect();
+
+        original_scores.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+
+        let sorted_original_indices: Vec<_> = original_scores.into_iter().map(|(_, i)| i).collect();
+
+        assert_eq!(sorted_original_indices, sorted_indices);
     }
 }
