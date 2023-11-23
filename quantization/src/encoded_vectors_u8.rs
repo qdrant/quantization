@@ -465,7 +465,7 @@ fn impl_score_l1(q_ptr: *const u8, v_ptr: *const u8, actual_dim: usize) -> i32 {
     unsafe {
         let mut score = 0i32;
         for i in 0..actual_dim {
-            score += ((*q_ptr.add(i) as i32) - (*v_ptr.add(i) as i32)).abs();
+            score += (*q_ptr.add(i) as i32).abs_diff(*v_ptr.add(i) as i32) as i32;
         }
         score
     }
