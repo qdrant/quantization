@@ -124,7 +124,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         // Dot product in a range [-1; 1] is approximated by NXOR in a range [0; 1]
         // L1 distance in range [-1; 1] (alpha=2) is approximated by alpha*XOR in a range [0; 1]
         // L2 distance in range [-1; 1] (alpha=2) is approximated by alpha*sqrt(XOR) in a range [0; 1]
-        // L2 distance is implemented as L2^2 in u8 quantization, so this implementation matches that
         // For example:
 
         // A    |   B   | Dot product | L1 | L2 |
@@ -139,8 +138,6 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         // 1 | 0  |  0    | 1
         // 1 | 1  |  1    | 0
 
-        // So if `invert` is true we return XOR, otherwise we return (dim - XOR)
-
         let xor_product = Self::xor_product(v1, v2) as f32;
 
         let dim = self.metadata.vector_parameters.dim as f32;
@@ -150,10 +147,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
             self.metadata.vector_parameters.distance_type,
             self.metadata.vector_parameters.invert,
         ) {
-            (DistanceType::Dot, false) => zeros_count - xor_product,
+            // So if `invert` is true we return XOR, otherwise we return (dim - XOR)
             (DistanceType::Dot, true) => xor_product - zeros_count,
-            (DistanceType::L1 | DistanceType::L2, false) => xor_product - zeros_count,
+            (DistanceType::Dot, false) => zeros_count - xor_product,
+            // This also results in exact ordering as L1 and L2 but reversed.
             (DistanceType::L1 | DistanceType::L2, true) => zeros_count - xor_product,
+            (DistanceType::L1 | DistanceType::L2, false) => xor_product - zeros_count,
         }
     }
 }
