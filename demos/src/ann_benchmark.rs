@@ -7,7 +7,6 @@ use quantization::{EncodedVectorsU8, VectorParameters};
 
 #[cfg(target_arch = "x86_64")]
 use crate::metrics::utils_avx2::dot_avx;
-
 #[cfg(target_arch = "x86_64")]
 use demos::metrics::utils_sse::dot_sse;
 

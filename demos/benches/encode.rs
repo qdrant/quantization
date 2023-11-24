@@ -5,16 +5,9 @@ use quantization::encoded_vectors_u8::EncodedVectorsU8;
 use rand::Rng;
 
 #[cfg(target_arch = "x86_64")]
-use demos::metrics::utils_avx2::dot_avx;
-
+use demos::metrics::utils_avx2::{dot_avx, l1_avx};
 #[cfg(target_arch = "x86_64")]
-use demos::metrics::utils_avx2::l1_avx;
-
-#[cfg(target_arch = "x86_64")]
-use demos::metrics::utils_sse::dot_sse;
-
-#[cfg(target_arch = "x86_64")]
-use demos::metrics::utils_sse::l1_sse;
+use demos::metrics::utils_sse::{dot_sse, l1_sse};
 
 fn encode_dot_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode dot");
