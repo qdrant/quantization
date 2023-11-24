@@ -126,17 +126,17 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
         // L2 distance in range [-1; 1] (alpha=2) is approximated by alpha*sqrt(XOR) in a range [0; 1]
         // For example:
 
-        // A    |   B   | Dot product | L1 | L2 |
-        // -0.5 | -0.5  |  0.25       | 0  | 0  |
-        // -0.5 |  0.5  | -0.25       | 1  | 1  |
-        //  0.5 | -0.5  | -0.25       | 1  | 1  |
-        //  0.5 |  0.5  |  0.25       | 0  | 0  |
+        // |  A   |  B   | Dot product | L1 | L2 |
+        // | -0.5 | -0.5 |  0.25       | 0  | 0  |
+        // | -0.5 |  0.5 | -0.25       | 1  | 1  |
+        // |  0.5 | -0.5 | -0.25       | 1  | 1  |
+        // |  0.5 |  0.5 |  0.25       | 0  | 0  |
 
-        // A | B  |  NXOR | XOR
-        // 0 | 0  |  1    | 0
-        // 0 | 1  |  0    | 1
-        // 1 | 0  |  0    | 1
-        // 1 | 1  |  1    | 0
+        // | A | B | NXOR | XOR
+        // | 0 | 0 | 1    | 0
+        // | 0 | 1 | 0    | 1
+        // | 1 | 0 | 0    | 1
+        // | 1 | 1 | 1    | 0
 
         let xor_product = Self::xor_product(v1, v2) as f32;
 
