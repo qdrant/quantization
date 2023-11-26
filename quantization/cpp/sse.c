@@ -74,6 +74,7 @@ EXPORT float impl_score_l1_sse(
     uint32_t m = dim - (dim % 16);
     __m128i sum128 = _mm_setzero_si128();
 
+    // the vector sizes are assumed to be multiples of 16, no remaining part here
     for (uint32_t i = 0; i < m; i += 16) {
         __m128i vec2 = _mm_loadu_si128(v_ptr);
         __m128i vec1 = _mm_loadu_si128(q_ptr);
@@ -101,11 +102,6 @@ EXPORT float impl_score_l1_sse(
 
     // Horizontal sum using the macro
     HSUM128_EPI16(sum_epi32, sum);
-
-    // Sum the remaining elements
-    for (uint32_t i = m; i < dim; ++i) {
-        sum += abs(query_ptr[i] - vector_ptr[i]);
-    }
 
     return (float) sum;
 }

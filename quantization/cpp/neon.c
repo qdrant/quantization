@@ -77,6 +77,7 @@ EXPORT float impl_score_l1_neon(
     uint16x8_t sum16_low = vdupq_n_u16(0);
     uint16x8_t sum16_high = vdupq_n_u16(0);
 
+    // the vector sizes are assumed to be multiples of 16, no remaining part here
     for (uint32_t i = 0; i < m; i += 16) {
         uint8x16_t vec1 = vld1q_u8(v_ptr);
         uint8x16_t vec2 = vld1q_u8(q_ptr);
@@ -100,11 +101,6 @@ EXPORT float impl_score_l1_neon(
     uint32x2_t sum64_low = vadd_u32(vget_low_u32(sum32), vget_high_u32(sum32));
     uint32x2_t sum64_high = vpadd_u32(sum64_low, sum64_low);
     uint32_t sum = vget_lane_u32(sum64_high, 0);
-
-    // Sum the remaining elements
-    for (uint32_t i = m; i < dim; ++i) {
-        sum += abs(query_ptr[i] - vector_ptr[i]);
-    }
 
     return (float) sum;
 }
