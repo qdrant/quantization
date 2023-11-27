@@ -11,7 +11,7 @@ mod tests {
     };
     use rand::{Rng, SeedableRng};
 
-    use crate::metrics::{dot_similarity, l2_similarity};
+    use crate::metrics::{dot_similarity, l1_similarity, l2_similarity};
 
     const VECTORS_COUNT: usize = 513;
     const VECTOR_DIM: usize = 65;
@@ -82,6 +82,38 @@ mod tests {
     }
 
     #[test]
+    fn test_pq_l1() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<_>> = vec![];
+        for _ in 0..VECTORS_COUNT {
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
+        }
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
+
+        let encoded = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::L1,
+                invert: false,
+            },
+            1,
+            1,
+            || false,
+        )
+        .unwrap();
+        let query_u8 = encoded.encode_query(&query);
+
+        for (index, vector) in vector_data.iter().enumerate() {
+            let score = encoded.score_point(&query_u8, index as u32);
+            let orginal_score = l1_similarity(&query, vector);
+            assert!((score - orginal_score).abs() < ERROR);
+        }
+    }
+
+    #[test]
     fn test_pq_dot_inverted() {
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
         let mut vector_data: Vec<Vec<_>> = vec![];
@@ -141,6 +173,38 @@ mod tests {
         for (index, vector) in vector_data.iter().enumerate() {
             let score = encoded.score_point(&query_u8, index as u32);
             let orginal_score = -l2_similarity(&query, vector);
+            assert!((score - orginal_score).abs() < ERROR);
+        }
+    }
+
+    #[test]
+    fn test_pq_l1_inverted() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<_>> = vec![];
+        for _ in 0..VECTORS_COUNT {
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
+        }
+        let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
+
+        let encoded = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::L1,
+                invert: true,
+            },
+            1,
+            1,
+            || false,
+        )
+        .unwrap();
+        let query_u8 = encoded.encode_query(&query);
+
+        for (index, vector) in vector_data.iter().enumerate() {
+            let score = encoded.score_point(&query_u8, index as u32);
+            let orginal_score = -l1_similarity(&query, vector);
             assert!((score - orginal_score).abs() < ERROR);
         }
     }

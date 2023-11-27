@@ -1,7 +1,8 @@
 use crate::encoded_vectors::validate_vector_parameters;
 use crate::utils::{transmute_from_u8_to_slice, transmute_to_u8_slice};
 use crate::{
-    EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError, VectorParameters,
+    DistanceType, EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError,
+    VectorParameters,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -120,30 +121,38 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     }
 
     fn calculate_metric(&self, v1: &[BitsStoreType], v2: &[BitsStoreType]) -> f32 {
-        let xor_product = Self::xor_product(v1, v2);
-
         // Dot product in a range [-1; 1] is approximated by NXOR in a range [0; 1]
+        // L1 distance in range [-1; 1] (alpha=2) is approximated by alpha*XOR in a range [0; 1]
+        // L2 distance in range [-1; 1] (alpha=2) is approximated by alpha*sqrt(XOR) in a range [0; 1]
         // For example:
 
-        // A    |   B   | Dot product
-        // -0.5 | -0.5  |  0.25
-        // -0.5 |  0.5  | -0.25
-        //  0.5 | -0.5  | -0.25
-        //  0.5 |  0.5  |  0.25
+        // |  A   |  B   | Dot product | L1 | L2 |
+        // | -0.5 | -0.5 |  0.25       | 0  | 0  |
+        // | -0.5 |  0.5 | -0.25       | 1  | 1  |
+        // |  0.5 | -0.5 | -0.25       | 1  | 1  |
+        // |  0.5 |  0.5 |  0.25       | 0  | 0  |
 
-        // A | B  |  NXOR
-        // 0 | 0  |  1
-        // 0 | 1  |  0
-        // 1 | 0  |  0
-        // 1 | 1  |  1
+        // | A | B | NXOR | XOR
+        // | 0 | 0 | 1    | 0
+        // | 0 | 1 | 0    | 1
+        // | 1 | 0 | 0    | 1
+        // | 1 | 1 | 1    | 0
 
-        // So is `invert` is true, we return XOR, otherwise we return (dim - XOR)
+        let xor_product = Self::xor_product(v1, v2) as f32;
 
-        let zeros_count = self.metadata.vector_parameters.dim - xor_product;
-        if self.metadata.vector_parameters.invert {
-            xor_product as f32 - zeros_count as f32
-        } else {
-            zeros_count as f32 - xor_product as f32
+        let dim = self.metadata.vector_parameters.dim as f32;
+        let zeros_count = dim - xor_product;
+
+        match (
+            self.metadata.vector_parameters.distance_type,
+            self.metadata.vector_parameters.invert,
+        ) {
+            // So if `invert` is true we return XOR, otherwise we return (dim - XOR)
+            (DistanceType::Dot, true) => xor_product - zeros_count,
+            (DistanceType::Dot, false) => zeros_count - xor_product,
+            // This also results in exact ordering as L1 and L2 but reversed.
+            (DistanceType::L1 | DistanceType::L2, true) => zeros_count - xor_product,
+            (DistanceType::L1 | DistanceType::L2, false) => xor_product - zeros_count,
         }
     }
 }
