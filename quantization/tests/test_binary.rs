@@ -38,7 +38,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -74,7 +74,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -110,7 +110,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -143,7 +143,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -175,7 +175,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -226,7 +226,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -277,7 +277,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -325,7 +325,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -373,7 +373,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -424,7 +424,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -475,7 +475,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -523,7 +523,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsBin::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,

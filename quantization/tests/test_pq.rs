@@ -27,7 +27,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -59,7 +59,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -91,7 +91,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -123,7 +123,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -155,7 +155,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -187,7 +187,7 @@ mod tests {
         let query: Vec<_> = (0..VECTOR_DIM).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -218,7 +218,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -248,7 +248,7 @@ mod tests {
         }
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(Vec::as_slice),
+            vector_data.iter(),
             vec![],
             &VectorParameters {
                 dim: VECTOR_DIM,
@@ -298,7 +298,7 @@ mod tests {
                             // after panic add start sleeping to simulate large amount of data
                             std::thread::sleep(Duration::from_micros(100));
                         }
-                        v.as_slice()
+                        v
                     }),
                     vec![],
                     &VectorParameters {

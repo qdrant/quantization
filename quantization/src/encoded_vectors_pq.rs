@@ -54,7 +54,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `max_threads` - Max allowed threads for kmeans and encodind process
     /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     pub fn encode<'a>(
-        data: impl Iterator<Item = &'a [f32]> + Clone + Send,
+        data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
         chunk_size: usize,
@@ -134,7 +134,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// 'a is lifetime of vector in vector storage
     /// 'b is lifetime of parent scope
     fn encode_storage<'a: 'b, 'b>(
-        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone + Send + 'b,
         storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
         vector_division: &'b [Range<usize>],
         centroids: &'b [Vec<f32>],
@@ -167,7 +167,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// This function should be called inside `rayon::scope`
     fn encode_storage_rayon<'a: 'b, 'b>(
         scope: &rayon::Scope<'b>,
-        data: impl Iterator<Item = &'a [f32]> + Clone + Send + 'b,
+        data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone + Send + 'b,
         storage_builder: &'b mut (impl EncodedStorageBuilder<TStorage> + Send),
         vector_division: &'b [Range<usize>],
         centroids: &'b [Vec<f32>],
@@ -199,7 +199,12 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
                         return;
                     }
 
-                    Self::encode_vector(vector, vector_division, centroids, &mut encoded_vector);
+                    Self::encode_vector(
+                        vector.as_ref(),
+                        vector_division,
+                        centroids,
+                        &mut encoded_vector,
+                    );
                     // wait for permission from prev thread to use storage
                     let is_disconnected = condvar.wait();
                     // push encoded vector to storage
@@ -271,7 +276,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `max_kmeans_threads` - Max allowed threads for kmeans process
     /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     fn find_centroids<'a>(
-        data: impl Iterator<Item = &'a [f32]> + Clone,
+        data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
         vector_division: &[Range<usize>],
         vector_parameters: &VectorParameters,
         centroids_count: usize,
@@ -284,7 +289,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
         // if there are not enough vectors, set centroids as point positions
         if vector_parameters.count <= centroids_count {
             for (i, vector_data) in data.into_iter().enumerate() {
-                result[i] = vector_data.to_vec();
+                result[i] = vector_data.as_ref().to_vec();
             }
             // fill empty centroids just with zeros
             result[vector_parameters.count..centroids_count].fill(vec![0.0; vector_parameters.dim]);
@@ -307,6 +312,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             let mut data_subset = Vec::with_capacity(sample_size * range.len());
             let mut selected_index: usize = 0;
             for (vector_index, vector_data) in data.clone().enumerate() {
+                let vector_data = vector_data.as_ref();
                 if vector_index == selected_vectors[selected_index] {
                     data_subset.extend_from_slice(&vector_data[range.clone()]);
                     selected_index += 1;

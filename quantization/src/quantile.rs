@@ -2,9 +2,11 @@ use permutation_iterator::Permutor;
 
 pub const QUANTILE_SAMPLE_SIZE: usize = 100_000;
 
-pub(crate) fn find_min_max_from_iter<'a>(iter: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+pub(crate) fn find_min_max_from_iter<'a>(
+    iter: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
+) -> (f32, f32) {
     iter.fold((f32::MAX, f32::MIN), |(mut min, mut max), vector| {
-        for &value in vector {
+        for &value in vector.as_ref() {
             if value < min {
                 min = value;
             }
@@ -17,7 +19,7 @@ pub(crate) fn find_min_max_from_iter<'a>(iter: impl Iterator<Item = &'a [f32]>) 
 }
 
 pub(crate) fn find_quantile_interval<'a>(
-    vector_data: impl Iterator<Item = &'a [f32]>,
+    vector_data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
     dim: usize,
     count: usize,
     quantile: f32,
@@ -35,7 +37,7 @@ pub(crate) fn find_quantile_interval<'a>(
     let mut selected_index: usize = 0;
     for (vector_index, vector_data) in vector_data.into_iter().enumerate() {
         if vector_index == selected_vectors[selected_index] {
-            data_slice.extend_from_slice(vector_data);
+            data_slice.extend_from_slice(vector_data.as_ref());
             selected_index += 1;
             if selected_index == slice_size {
                 break;

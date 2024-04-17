@@ -25,7 +25,7 @@ mod tests {
         let vector_data: Vec<Vec<f32>> = Default::default();
 
         let encoded = EncodedVectorsU8::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &vector_parameters,
             None,
@@ -62,7 +62,7 @@ mod tests {
         let vector_data: Vec<Vec<f32>> = Default::default();
 
         let encoded = EncodedVectorsPQ::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &vector_parameters,
             2,

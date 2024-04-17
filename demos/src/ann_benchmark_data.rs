@@ -199,7 +199,7 @@ impl AnnBenchmarkData {
         }
     }
 
-    fn print_timings(timings: &mut Vec<f64>) {
+    fn print_timings(timings: &mut [f64]) {
         if timings.is_empty() {
             return;
         }
