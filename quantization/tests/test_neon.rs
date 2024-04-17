@@ -27,7 +27,7 @@ mod tests {
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsU8::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -63,7 +63,7 @@ mod tests {
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsU8::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,
@@ -99,7 +99,7 @@ mod tests {
         let query: Vec<f32> = (0..vector_dim).map(|_| rng.gen()).collect();
 
         let encoded = EncodedVectorsU8::encode(
-            vector_data.iter().map(|v| v.as_slice()),
+            vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
                 dim: vector_dim,

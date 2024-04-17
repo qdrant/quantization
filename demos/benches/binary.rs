@@ -35,7 +35,7 @@ fn binary_bench(c: &mut Criterion) {
     }
 
     let encoded = EncodedVectorsBin::encode(
-        vectors.iter().map(|v| v.as_slice()),
+        vectors.iter(),
         Vec::<u8>::new(),
         &VectorParameters {
             dim: vector_dim,

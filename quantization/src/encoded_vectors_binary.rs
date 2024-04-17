@@ -27,7 +27,7 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         stop_condition: impl Fn() -> bool,
@@ -39,7 +39,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsBin<TStorage> {
                 return Err(EncodingError::Stopped);
             }
 
-            let encoded_vector = Self::_encode_vector(vector);
+            let encoded_vector = Self::_encode_vector(vector.as_ref());
             let encoded_vector_slice = encoded_vector.encoded_vector.as_slice();
             let bytes = transmute_to_u8_slice(encoded_vector_slice);
             storage_builder.push_vector_data(bytes);

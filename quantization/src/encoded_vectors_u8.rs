@@ -32,7 +32,7 @@ struct Metadata {
 
 impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
     pub fn encode<'a>(
-        orig_data: impl Iterator<Item = &'a [f32]> + Clone,
+        orig_data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
         mut storage_builder: impl EncodedStorageBuilder<TStorage>,
         vector_parameters: &VectorParameters,
         quantile: Option<f32>,
@@ -77,7 +77,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
 
             let mut encoded_vector = Vec::with_capacity(actual_dim + std::mem::size_of::<f32>());
             encoded_vector.extend_from_slice(&f32::default().to_ne_bytes());
-            for &value in vector {
+            for &value in vector.as_ref() {
                 let encoded = Self::f32_to_u8(value, alpha, offset);
                 encoded_vector.push(encoded);
             }
@@ -218,7 +218,9 @@ impl<TStorage: EncodedStorage> EncodedVectorsU8<TStorage> {
         }
     }
 
-    fn find_alpha_offset_size_dim<'a>(orig_data: impl Iterator<Item = &'a [f32]>) -> (f32, f32) {
+    fn find_alpha_offset_size_dim<'a>(
+        orig_data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
+    ) -> (f32, f32) {
         let (min, max) = find_min_max_from_iter(orig_data);
         Self::alpha_offset_from_min_max(min, max)
     }

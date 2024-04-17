@@ -45,11 +45,12 @@ impl DistanceType {
 }
 
 pub(crate) fn validate_vector_parameters<'a>(
-    data: impl Iterator<Item = &'a [f32]>,
+    data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
     vector_parameters: &VectorParameters,
 ) -> Result<(), EncodingError> {
     let mut count = 0;
     for vector in data {
+        let vector = vector.as_ref();
         if vector.len() != vector_parameters.dim {
             return Err(EncodingError::ArgumentsError(format!(
                 "Vector length {} does not match vector parameters dim {}",

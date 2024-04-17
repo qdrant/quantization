@@ -37,7 +37,7 @@ mod tests {
 
         assert!(
             EncodedVectorsU8::encode(
-                (0..vector_parameters.count).map(|_| zero_vector.as_slice()),
+                (0..vector_parameters.count).map(|_| &zero_vector),
                 Vec::<u8>::new(),
                 &vector_parameters,
                 None,
@@ -73,7 +73,7 @@ mod tests {
 
         assert!(
             EncodedVectorsPQ::encode(
-                (0..vector_parameters.count).map(|_| zero_vector.as_slice()),
+                (0..vector_parameters.count).map(|_| &zero_vector),
                 Vec::<u8>::new(),
                 &vector_parameters,
                 2,
