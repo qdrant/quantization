@@ -343,7 +343,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
     #[cfg(feature = "dump_image")]
     fn dump_to_image<'a>(
-        data: impl Iterator<Item = &'a [f32]> + Clone,
+        data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone,
         storage: &TStorage,
         centroids: &[Vec<f32>],
         vector_division: &[Range<usize>],
@@ -370,6 +370,7 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             }
 
             for (i, vector_data) in data.clone().enumerate() {
+                let vector_data = vector_data.as_ref();
                 let subvector_data = &vector_data[range.clone()];
                 let centroid_index =
                     storage.get_vector_data(i, vector_division.len())[range_i] as usize;
