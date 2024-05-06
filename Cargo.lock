@@ -1478,7 +1478,6 @@ dependencies = [
 name = "quantization"
 version = "0.1.0"
 dependencies = [
- "cc",
  "image",
  "num_threads",
  "permutation_iterator",

@@ -3,6 +3,10 @@ use std::path::Path;
 
 use crate::encoded_vectors::validate_vector_parameters;
 use crate::quantile::{find_min_max_from_iter, find_quantile_interval};
+use crate::simd::avx2::dot_u8::impl_score_dot_avx;
+use crate::simd::avx2::manhattan_u8::impl_score_l1_avx;
+use crate::simd::sse2::dot_u8::impl_score_dot_sse;
+use crate::simd::sse2::manhattan_u8::impl_score_l1_sse;
 use crate::{
     encoded_storage::{EncodedStorage, EncodedStorageBuilder},
     encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
@@ -471,15 +475,6 @@ fn impl_score_l1(q_ptr: *const u8, v_ptr: *const u8, actual_dim: usize) -> i32 {
         }
         score
     }
-}
-
-#[cfg(target_arch = "x86_64")]
-extern "C" {
-    fn impl_score_dot_avx(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
-    fn impl_score_l1_avx(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
-
-    fn impl_score_dot_sse(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
-    fn impl_score_l1_sse(query_ptr: *const u8, vector_ptr: *const u8, dim: u32) -> f32;
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
