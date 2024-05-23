@@ -108,6 +108,7 @@ fn binary_bench(c: &mut Criterion) {
         });
     });
 
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score DOT random access", |b| {
         b.iter(|| {
             let mut _s = 0.0;

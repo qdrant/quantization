@@ -58,22 +58,8 @@ impl BitsStoreType for u8 {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if is_x86_feature_detected!("sse4.2") {
             unsafe {
-                return impl_xor_popcnt_sse_uint8(
-                    v1.as_ptr(),
-                    v2.as_ptr(),
-                    v1.len() as u32,
-                ) as usize;
-            }
-        }
-
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        if std::arch::is_aarch64_feature_detected!("neon") {
-            unsafe {
-                return impl_xor_popcnt_neon_uint8(
-                    v1.as_ptr(),
-                    v2.as_ptr(),
-                    v1.len() as u32,
-                ) as usize;
+                return impl_xor_popcnt_sse_uint8(v1.as_ptr(), v2.as_ptr(), v1.len() as u32)
+                    as usize;
             }
         }
 
@@ -107,7 +93,7 @@ impl BitsStoreType for u128 {
                 return impl_xor_popcnt_sse_uint64(
                     v1.as_ptr() as *const u64,
                     v2.as_ptr() as *const u64,
-                    2 * v1.len() as u32, // multiply by 2 because we have u128 contains 2 u64 elements
+                    2 * v1.len() as u32, // multiply by 2 because u128 contains 2 u64 elements
                 ) as usize;
             }
         }
@@ -115,10 +101,10 @@ impl BitsStoreType for u128 {
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
         if std::arch::is_aarch64_feature_detected!("neon") {
             unsafe {
-                return impl_xor_popcnt_neon_uint64(
-                    v1.as_ptr() as *const u64,
-                    v2.as_ptr() as *const u64,
-                    2 * v1.len() as u32, // multiply by 2 because we have u128 contains 2 u64 elements
+                return impl_xor_popcnt_neon_uint128(
+                    v1.as_ptr() as *const u8,
+                    v2.as_ptr() as *const u8,
+                    v1.len() as u32,
                 ) as usize;
             }
         }
@@ -298,15 +284,12 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
 extern "C" {
     fn impl_xor_popcnt_sse_uint64(query_ptr: *const u64, vector_ptr: *const u64, count: u32)
         -> u32;
+
     fn impl_xor_popcnt_sse_uint8(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 extern "C" {
-    fn impl_xor_popcnt_neon_uint64(
-        query_ptr: *const u64,
-        vector_ptr: *const u64,
-        count: u32,
-    ) -> u32;
-    fn impl_xor_popcnt_neon_uint8(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
+    fn impl_xor_popcnt_neon_uint128(query_ptr: *const u8, vector_ptr: *const u8, count: u32)
+        -> u32;
 }
