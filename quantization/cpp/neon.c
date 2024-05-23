@@ -23,7 +23,7 @@ EXPORT float impl_score_dot_neon(
     return (float)vaddvq_u32(vaddq_u32(mul1, mul2));
 }
 
-EXPORT uint64_t impl_xor_popcnt_neon(
+EXPORT uint64_t impl_xor_popcnt_neon_uint64(
     const uint64_t* query_ptr,
     const uint64_t* vector_ptr,
     uint32_t count
@@ -31,7 +31,7 @@ EXPORT uint64_t impl_xor_popcnt_neon(
     const uint8_t* v_ptr = (const uint8_t*)vector_ptr;
     const uint8_t* q_ptr = (const uint8_t*)query_ptr;
     uint32x4_t result = vdupq_n_u32(0);
-    for (uint32_t _i = 0; _i < count / 2; _i++) {
+    for (uint32_t _i = 0; _i < count / 4; _i++) {
         uint8x16_t v1 = vld1q_u8(v_ptr);
         uint8x16_t q1 = vld1q_u8(q_ptr);
         uint8x16_t v2 = vld1q_u8(v_ptr + 16);
@@ -51,7 +51,7 @@ EXPORT uint64_t impl_xor_popcnt_neon(
         q_ptr += 32;
     }
 
-    if (count % 2 == 1) {
+    if (count % 4 != 0) {
         uint8x16_t v = vld1q_u8(v_ptr);
         uint8x16_t q = vld1q_u8(q_ptr);
         uint8x16_t x = veorq_u8(q, v);
@@ -63,6 +63,14 @@ EXPORT uint64_t impl_xor_popcnt_neon(
     }
 
     return (uint64_t)vaddvq_u32(result);
+}
+
+EXPORT uint64_t impl_xor_popcnt_neon_uint8(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t count
+) {
+    return (uint64_t)0;
 }
 
 EXPORT float impl_score_l1_neon(

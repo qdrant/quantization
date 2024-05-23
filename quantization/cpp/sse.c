@@ -46,19 +46,40 @@ EXPORT float impl_score_dot_sse(
     return mul_scalar;
 }
 
-EXPORT uint64_t impl_xor_popcnt_sse(
+EXPORT uint32_t impl_xor_popcnt_sse_uint64(
     const uint64_t* query_ptr,
     const uint64_t* vector_ptr,
     uint32_t count
 ) {
-    const int64_t* v_ptr = (const int64_t*)vector_ptr;
-    const int64_t* q_ptr = (const int64_t*)query_ptr;
     int64_t result = 0;
-    for (uint32_t _i = 0; _i < 2 * count; _i++) {
-        uint64_t x = (*v_ptr) ^ (*q_ptr);
+    for (uint32_t _i = 0; _i < count; _i++) {
+        uint64_t x = (*vector_ptr) ^ (*query_ptr);
         result += _mm_popcnt_u64(x);
-        v_ptr++;
-        q_ptr++;
+        vector_ptr++;
+        query_ptr++;
+    }
+    return (uint32_t)result;
+}
+
+EXPORT uint32_t impl_xor_popcnt_sse_uint8(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t count
+) {
+    int result = 0;
+    for (uint32_t _i = 0; _i < count / 4; _i++) {
+        const uint32_t* v_ptr = (const uint32_t*)vector_ptr;
+        const uint32_t* q_ptr = (const uint32_t*)query_ptr;
+        uint32_t x = (*v_ptr) ^ (*q_ptr);
+        result += _mm_popcnt_u32(x);
+        vector_ptr += 4;
+        query_ptr += 4;
+    }
+    for (uint32_t _i = 0; _i < count % 4; _i++) {
+        uint8_t x = (*vector_ptr) ^ (*query_ptr);
+        result += (int)__builtin_popcount(x);
+        vector_ptr++;
+        query_ptr++;
     }
     return (uint32_t)result;
 }

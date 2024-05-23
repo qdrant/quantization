@@ -5,7 +5,7 @@ mod metrics;
 mod tests {
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
-        encoded_vectors_binary::EncodedVectorsBin,
+        encoded_vectors_binary::{BitsStoreType, EncodedVectorsBin},
     };
     use rand::{Rng, SeedableRng};
 
@@ -26,8 +26,13 @@ mod tests {
 
     #[test]
     fn test_binary_dot() {
+        test_binary_dot_impl::<u8>();
+        test_binary_dot_impl::<u128>();
+    }
+
+    fn test_binary_dot_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 3 * 128;
+        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -37,7 +42,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -62,8 +67,13 @@ mod tests {
 
     #[test]
     fn test_binary_dot_inverted() {
+        test_binary_dot_inverted_impl::<u8>();
+        test_binary_dot_inverted_impl::<u128>();
+    }
+
+    fn test_binary_dot_inverted_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -73,7 +83,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -98,8 +108,13 @@ mod tests {
 
     #[test]
     fn test_binary_dot_internal() {
+        test_binary_dot_internal_impl::<u8>();
+        test_binary_dot_internal_impl::<u128>();
+    }
+
+    fn test_binary_dot_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -109,7 +124,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -131,8 +146,13 @@ mod tests {
 
     #[test]
     fn test_binary_dot_inverted_internal() {
+        test_binary_dot_inverted_internal_impl::<u8>();
+        test_binary_dot_inverted_internal_impl::<u128>();
+    }
+
+    fn test_binary_dot_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -142,7 +162,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -164,8 +184,13 @@ mod tests {
 
     #[test]
     fn test_binary_l1() {
+        test_binary_l1_impl::<u8>();
+        test_binary_l1_impl::<u128>();
+    }
+
+    fn test_binary_l1_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 3 * 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -174,7 +199,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -215,8 +240,13 @@ mod tests {
 
     #[test]
     fn test_binary_l1_inverted() {
+        test_binary_l1_inverted_impl::<u8>();
+        test_binary_l1_inverted_impl::<u128>();
+    }
+
+    fn test_binary_l1_inverted_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -225,7 +255,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -266,8 +296,13 @@ mod tests {
 
     #[test]
     fn test_binary_l1_internal() {
+        test_binary_l1_internal_impl::<u8>();
+        test_binary_l1_internal_impl::<u128>();
+    }
+
+    fn test_binary_l1_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -276,7 +311,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -314,8 +349,13 @@ mod tests {
 
     #[test]
     fn test_binary_l1_inverted_internal() {
+        test_binary_l1_inverted_internal_impl::<u8>();
+        test_binary_l1_inverted_internal_impl::<u128>();
+    }
+
+    fn test_binary_l1_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -324,7 +364,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -362,8 +402,13 @@ mod tests {
 
     #[test]
     fn test_binary_l2() {
+        test_binary_l2_impl::<u8>();
+        test_binary_l2_impl::<u128>();
+    }
+
+    fn test_binary_l2_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 3 * 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -372,7 +417,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -413,8 +458,13 @@ mod tests {
 
     #[test]
     fn test_binary_l2_inverted() {
+        test_binary_l2_inverted_impl::<u8>();
+        test_binary_l2_inverted_impl::<u128>();
+    }
+
+    fn test_binary_l2_inverted_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -423,7 +473,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -464,8 +514,13 @@ mod tests {
 
     #[test]
     fn test_binary_l2_internal() {
+        test_binary_l2_internal_impl::<u8>();
+        test_binary_l2_internal_impl::<u128>();
+    }
+
+    fn test_binary_l2_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -474,7 +529,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
@@ -512,8 +567,13 @@ mod tests {
 
     #[test]
     fn test_binary_l2_inverted_internal() {
+        test_binary_l2_inverted_internal_impl::<u8>();
+        test_binary_l2_inverted_internal_impl::<u128>();
+    }
+
+    fn test_binary_l2_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
         let vectors_count = 128;
-        let vector_dim = 128;
+        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -522,7 +582,7 @@ mod tests {
             vector_data.push(generate_vector(vector_dim, &mut rng));
         }
 
-        let encoded = EncodedVectorsBin::encode(
+        let encoded = EncodedVectorsBin::<TBitsStoreType, _>::encode(
             vector_data.iter(),
             Vec::<u8>::new(),
             &VectorParameters {
