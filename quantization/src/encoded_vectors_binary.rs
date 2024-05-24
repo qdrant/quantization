@@ -282,8 +282,11 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
 
 #[cfg(target_arch = "x86_64")]
 extern "C" {
-    fn impl_xor_popcnt_sse_uint128(query_ptr: *const u64, vector_ptr: *const u64, count: u32)
-        -> u32;
+    fn impl_xor_popcnt_sse_uint128(
+        query_ptr: *const u64,
+        vector_ptr: *const u64,
+        count: u32,
+    ) -> u32;
 
     fn impl_xor_popcnt_sse_uint8(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 }
