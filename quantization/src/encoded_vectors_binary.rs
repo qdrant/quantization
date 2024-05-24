@@ -1,4 +1,5 @@
 use crate::encoded_vectors::validate_vector_parameters;
+use crate::simd::sse2::xor_popcnt::impl_xor_popcnt_sse;
 use crate::utils::{transmute_from_u8_to_slice, transmute_to_u8_slice};
 use crate::{
     DistanceType, EncodedStorage, EncodedStorageBuilder, EncodedVectors, EncodingError,
@@ -212,11 +213,6 @@ impl<TStorage: EncodedStorage> EncodedVectors<EncodedBinVector> for EncodedVecto
 
         self.calculate_metric(vector_data_usize_1, vector_data_usize_2)
     }
-}
-
-#[cfg(target_arch = "x86_64")]
-extern "C" {
-    fn impl_xor_popcnt_sse(query_ptr: *const u64, vector_ptr: *const u64, count: u32) -> u32;
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
