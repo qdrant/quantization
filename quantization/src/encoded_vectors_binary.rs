@@ -24,10 +24,8 @@ struct Metadata {
 }
 
 pub trait BitsStoreType:
-    Default + Copy + Clone + core::ops::BitOrAssign + std::ops::Shl<usize, Output = Self>
+    Default + Copy + Clone + core::ops::BitOrAssign + std::ops::Shl<usize, Output = Self> + num_traits::identities::One
 {
-    fn one() -> Self;
-
     /// Xor vectors and return the number of bits set to 1
     ///
     /// Assume that `v1` and `v2` are aligned to `BITS_STORE_TYPE_SIZE` with both with zeros
@@ -36,10 +34,6 @@ pub trait BitsStoreType:
 }
 
 impl BitsStoreType for u8 {
-    fn one() -> Self {
-        1
-    }
-
     fn xor_popcnt(v1: &[Self], v2: &[Self]) -> usize {
         debug_assert!(v1.len() == v2.len());
 
@@ -60,10 +54,6 @@ impl BitsStoreType for u8 {
 }
 
 impl BitsStoreType for u128 {
-    fn one() -> Self {
-        1
-    }
-
     fn xor_popcnt(v1: &[Self], v2: &[Self]) -> usize {
         debug_assert!(v1.len() == v2.len());
 
@@ -268,11 +258,30 @@ extern "C" {
         count: u32,
     ) -> u32;
 
-    fn impl_xor_popcnt_sse_uint8(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
+    fn impl_xor_popcnt_sse_uint64(
+        query_ptr: *const u64,
+        vector_ptr: *const u64,
+        count: u32,
+    ) -> u32;
+
+    fn impl_xor_popcnt_sse_uint32(
+        query_ptr: *const u64,
+        vector_ptr: *const u64,
+        count: u32,
+    ) -> u32;
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 extern "C" {
-    fn impl_xor_popcnt_neon_uint128(query_ptr: *const u8, vector_ptr: *const u8, count: u32)
-        -> u32;
+    fn impl_xor_popcnt_neon_uint128(
+        query_ptr: *const u8,
+        vector_ptr: *const u8,
+        count: u32,
+    ) -> u32;
+
+    fn impl_xor_popcnt_neon_uint64(
+        query_ptr: *const u8,
+        vector_ptr: *const u8,
+        count: u32,
+    ) -> u32;
 }
