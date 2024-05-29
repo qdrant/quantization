@@ -26,11 +26,7 @@ struct Metadata {
 pub trait BitsStoreType:
     Default + Copy + Clone + core::ops::BitOrAssign + std::ops::Shl<usize, Output = Self>
 {
-    fn bits_count() -> usize;
-
     fn one() -> Self;
-
-    fn count_ones(self) -> usize;
 
     /// Xor vectors and return the number of bits set to 1
     ///
@@ -40,16 +36,8 @@ pub trait BitsStoreType:
 }
 
 impl BitsStoreType for u8 {
-    fn bits_count() -> usize {
-        8
-    }
-
     fn one() -> Self {
         1
-    }
-
-    fn count_ones(self) -> usize {
-        self.count_ones() as usize
     }
 
     fn xor_popcnt(v1: &[Self], v2: &[Self]) -> usize {
@@ -72,16 +60,8 @@ impl BitsStoreType for u8 {
 }
 
 impl BitsStoreType for u128 {
-    fn bits_count() -> usize {
-        128
-    }
-
     fn one() -> Self {
         1
-    }
-
-    fn count_ones(self) -> usize {
-        self.count_ones() as usize
     }
 
     fn xor_popcnt(v1: &[Self], v2: &[Self]) -> usize {
@@ -151,7 +131,7 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
     fn encode_vector(vector: &[f32]) -> EncodedBinVector<TBitsStoreType> {
         let mut encoded_vector = vec![Default::default(); Self::get_storage_size(vector.len())];
 
-        let bits_count = TBitsStoreType::bits_count();
+        let bits_count = 8 * std::mem::size_of::<TBitsStoreType>();
         let one = TBitsStoreType::one();
         for (i, &v) in vector.iter().enumerate() {
             // flag is true if the value is positive
@@ -166,7 +146,7 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
 
     /// Estimates how many `StorageType` elements are needed to store `size` bits
     fn get_storage_size(size: usize) -> usize {
-        let bits_count = TBitsStoreType::bits_count();
+        let bits_count = 8 * std::mem::size_of::<TBitsStoreType>();
         let mut result = size / bits_count;
         if size % bits_count != 0 {
             result += 1;
