@@ -32,6 +32,7 @@ mod tests {
         test_binary_dot_impl::<u8>(33);
         test_binary_dot_impl::<u8>(65);
         test_binary_dot_impl::<u8>(3 * 129);
+        test_binary_dot_impl::<u128>(1);
         test_binary_dot_impl::<u128>(3 * 129);
     }
 
@@ -77,6 +78,7 @@ mod tests {
         test_binary_dot_inverted_impl::<u8>(33);
         test_binary_dot_inverted_impl::<u8>(65);
         test_binary_dot_inverted_impl::<u8>(3 * 129);
+        test_binary_dot_inverted_impl::<u128>(1);
         test_binary_dot_inverted_impl::<u128>(3 * 129);
     }
 
@@ -122,6 +124,7 @@ mod tests {
         test_binary_dot_internal_impl::<u8>(33);
         test_binary_dot_internal_impl::<u8>(65);
         test_binary_dot_internal_impl::<u8>(3 * 129);
+        test_binary_dot_internal_impl::<u128>(1);
         test_binary_dot_internal_impl::<u128>(3 * 129);
     }
 
@@ -164,6 +167,7 @@ mod tests {
         test_binary_dot_inverted_internal_impl::<u8>(33);
         test_binary_dot_inverted_internal_impl::<u8>(65);
         test_binary_dot_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_dot_inverted_internal_impl::<u128>(1);
         test_binary_dot_inverted_internal_impl::<u128>(3 * 129);
     }
 
@@ -206,6 +210,7 @@ mod tests {
         test_binary_l1_impl::<u8>(33);
         test_binary_l1_impl::<u8>(65);
         test_binary_l1_impl::<u8>(3 * 129);
+        test_binary_l1_impl::<u128>(1);
         test_binary_l1_impl::<u128>(3 * 129);
     }
 
@@ -266,6 +271,7 @@ mod tests {
         test_binary_l1_inverted_impl::<u8>(33);
         test_binary_l1_inverted_impl::<u8>(65);
         test_binary_l1_inverted_impl::<u8>(3 * 129);
+        test_binary_l1_inverted_impl::<u128>(1);
         test_binary_l1_inverted_impl::<u128>(3 * 129);
     }
 
@@ -326,6 +332,7 @@ mod tests {
         test_binary_l1_internal_impl::<u8>(33);
         test_binary_l1_internal_impl::<u8>(65);
         test_binary_l1_internal_impl::<u8>(3 * 129);
+        test_binary_l1_internal_impl::<u128>(1);
         test_binary_l1_internal_impl::<u128>(3 * 129);
     }
 
@@ -383,6 +390,7 @@ mod tests {
         test_binary_l1_inverted_internal_impl::<u8>(33);
         test_binary_l1_inverted_internal_impl::<u8>(65);
         test_binary_l1_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_l1_inverted_internal_impl::<u128>(1);
         test_binary_l1_inverted_internal_impl::<u128>(3 * 129);
     }
 
@@ -440,6 +448,7 @@ mod tests {
         test_binary_l2_impl::<u8>(33);
         test_binary_l2_impl::<u8>(65);
         test_binary_l2_impl::<u8>(3 * 129);
+        test_binary_l2_impl::<u128>(1);
         test_binary_l2_impl::<u128>(3 * 129);
     }
 
@@ -500,6 +509,7 @@ mod tests {
         test_binary_l2_inverted_impl::<u8>(33);
         test_binary_l2_inverted_impl::<u8>(65);
         test_binary_l2_inverted_impl::<u8>(3 * 129);
+        test_binary_l2_inverted_impl::<u128>(1);
         test_binary_l2_inverted_impl::<u128>(3 * 129);
     }
 
@@ -560,6 +570,7 @@ mod tests {
         test_binary_l2_internal_impl::<u8>(33);
         test_binary_l2_internal_impl::<u8>(65);
         test_binary_l2_internal_impl::<u8>(3 * 129);
+        test_binary_l2_internal_impl::<u128>(1);
         test_binary_l2_internal_impl::<u128>(3 * 129);
     }
 
@@ -617,6 +628,7 @@ mod tests {
         test_binary_l2_inverted_internal_impl::<u8>(33);
         test_binary_l2_inverted_internal_impl::<u8>(65);
         test_binary_l2_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_l2_inverted_internal_impl::<u128>(1);
         test_binary_l2_inverted_internal_impl::<u128>(3 * 129);
     }
 

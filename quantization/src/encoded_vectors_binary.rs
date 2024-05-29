@@ -24,13 +24,21 @@ struct Metadata {
 }
 
 pub trait BitsStoreType:
-    Default + Copy + Clone + core::ops::BitOrAssign + std::ops::Shl<usize, Output = Self> + num_traits::identities::One
+    Default
+    + Copy
+    + Clone
+    + core::ops::BitOrAssign
+    + std::ops::Shl<usize, Output = Self>
+    + num_traits::identities::One
 {
     /// Xor vectors and return the number of bits set to 1
     ///
     /// Assume that `v1` and `v2` are aligned to `BITS_STORE_TYPE_SIZE` with both with zeros
     /// So it does not affect the resulting number of bits set to 1
     fn xor_popcnt(v1: &[Self], v2: &[Self]) -> usize;
+
+    /// Estimates how many `StorageType` elements are needed to store `size` bits
+    fn get_storage_size(size: usize) -> usize;
 }
 
 impl BitsStoreType for u8 {
@@ -40,8 +48,44 @@ impl BitsStoreType for u8 {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         if is_x86_feature_detected!("sse4.2") {
             unsafe {
-                return impl_xor_popcnt_sse_uint8(v1.as_ptr(), v2.as_ptr(), v1.len() as u32)
-                    as usize;
+                if v1.len() > 16 {
+                    return impl_xor_popcnt_sse_uint128(
+                        v1.as_ptr(),
+                        v2.as_ptr(),
+                        (v1.len() as u32) / 16,
+                    ) as usize;
+                } else if v1.len() > 8 {
+                    return impl_xor_popcnt_sse_uint64(
+                        v1.as_ptr(),
+                        v2.as_ptr(),
+                        (v1.len() as u32) / 8,
+                    ) as usize;
+                } else if v1.len() > 4 {
+                    return impl_xor_popcnt_sse_uint32(
+                        v1.as_ptr(),
+                        v2.as_ptr(),
+                        (v1.len() as u32) / 4,
+                    ) as usize;
+                }
+            }
+        }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        if std::arch::is_aarch64_feature_detected!("neon") {
+            unsafe {
+                if v1.len() > 16 {
+                    return impl_xor_popcnt_neon_uint128(
+                        v1.as_ptr(),
+                        v2.as_ptr(),
+                        (v1.len() as u32) / 16,
+                    ) as usize;
+                } else if v1.len() > 8 {
+                    return impl_xor_popcnt_neon_uint64(
+                        v1.as_ptr(),
+                        v2.as_ptr(),
+                        (v1.len() as u32) / 8,
+                    ) as usize;
+                }
             }
         }
 
@@ -50,6 +94,25 @@ impl BitsStoreType for u8 {
             result += (b1 ^ b2).count_ones() as usize;
         }
         result
+    }
+
+    fn get_storage_size(size: usize) -> usize {
+        let bytes_count = if size > 128 {
+            std::mem::size_of::<u128>()
+        } else if size > 64 {
+            std::mem::size_of::<u64>()
+        } else if size > 32 {
+            std::mem::size_of::<u32>()
+        } else {
+            std::mem::size_of::<u8>()
+        };
+
+        let bits_count = 8 * bytes_count;
+        let mut result = size / bits_count;
+        if size % bits_count != 0 {
+            result += 1;
+        }
+        result * bytes_count
     }
 }
 
@@ -61,8 +124,8 @@ impl BitsStoreType for u128 {
         if is_x86_feature_detected!("sse4.2") {
             unsafe {
                 return impl_xor_popcnt_sse_uint128(
-                    v1.as_ptr() as *const u64,
-                    v2.as_ptr() as *const u64,
+                    v1.as_ptr() as *const u8,
+                    v2.as_ptr() as *const u8,
                     v1.len() as u32,
                 ) as usize;
             }
@@ -82,6 +145,15 @@ impl BitsStoreType for u128 {
         let mut result = 0;
         for (&b1, &b2) in v1.iter().zip(v2.iter()) {
             result += (b1 ^ b2).count_ones() as usize;
+        }
+        result
+    }
+
+    fn get_storage_size(size: usize) -> usize {
+        let bits_count = 8 * std::mem::size_of::<Self>();
+        let mut result = size / bits_count;
+        if size % bits_count != 0 {
+            result += 1;
         }
         result
     }
@@ -119,7 +191,8 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
     }
 
     fn encode_vector(vector: &[f32]) -> EncodedBinVector<TBitsStoreType> {
-        let mut encoded_vector = vec![Default::default(); Self::get_storage_size(vector.len())];
+        let mut encoded_vector =
+            vec![Default::default(); TBitsStoreType::get_storage_size(vector.len())];
 
         let bits_count = 8 * std::mem::size_of::<TBitsStoreType>();
         let one = TBitsStoreType::one();
@@ -134,18 +207,9 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
         EncodedBinVector { encoded_vector }
     }
 
-    /// Estimates how many `StorageType` elements are needed to store `size` bits
-    fn get_storage_size(size: usize) -> usize {
-        let bits_count = 8 * std::mem::size_of::<TBitsStoreType>();
-        let mut result = size / bits_count;
-        if size % bits_count != 0 {
-            result += 1;
-        }
-        result
-    }
-
     pub fn get_quantized_vector_size_from_params(vector_parameters: &VectorParameters) -> usize {
-        Self::get_storage_size(vector_parameters.dim) * std::mem::size_of::<TBitsStoreType>()
+        TBitsStoreType::get_storage_size(vector_parameters.dim)
+            * std::mem::size_of::<TBitsStoreType>()
     }
 
     fn get_quantized_vector_size(&self) -> usize {
@@ -252,36 +316,17 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
 
 #[cfg(target_arch = "x86_64")]
 extern "C" {
-    fn impl_xor_popcnt_sse_uint128(
-        query_ptr: *const u64,
-        vector_ptr: *const u64,
-        count: u32,
-    ) -> u32;
+    fn impl_xor_popcnt_sse_uint128(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 
-    fn impl_xor_popcnt_sse_uint64(
-        query_ptr: *const u64,
-        vector_ptr: *const u64,
-        count: u32,
-    ) -> u32;
+    fn impl_xor_popcnt_sse_uint64(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 
-    fn impl_xor_popcnt_sse_uint32(
-        query_ptr: *const u64,
-        vector_ptr: *const u64,
-        count: u32,
-    ) -> u32;
+    fn impl_xor_popcnt_sse_uint32(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 extern "C" {
-    fn impl_xor_popcnt_neon_uint128(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        count: u32,
-    ) -> u32;
+    fn impl_xor_popcnt_neon_uint128(query_ptr: *const u8, vector_ptr: *const u8, count: u32)
+        -> u32;
 
-    fn impl_xor_popcnt_neon_uint64(
-        query_ptr: *const u8,
-        vector_ptr: *const u8,
-        count: u32,
-    ) -> u32;
+    fn impl_xor_popcnt_neon_uint64(query_ptr: *const u8, vector_ptr: *const u8, count: u32) -> u32;
 }
