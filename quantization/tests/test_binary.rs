@@ -26,13 +26,17 @@ mod tests {
 
     #[test]
     fn test_binary_dot() {
-        test_binary_dot_impl::<u8>();
-        test_binary_dot_impl::<u128>();
+        test_binary_dot_impl::<u8>(0);
+        test_binary_dot_impl::<u8>(1);
+        test_binary_dot_impl::<u8>(8);
+        test_binary_dot_impl::<u8>(33);
+        test_binary_dot_impl::<u8>(65);
+        test_binary_dot_impl::<u8>(3 * 129);
+        test_binary_dot_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_dot_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_dot_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -61,19 +65,23 @@ mod tests {
         for (index, vector) in vector_data.iter().enumerate() {
             let score = encoded.score_point(&query_u8, index as u32);
             let orginal_score = dot_similarity(&query, vector);
-            assert!((score - orginal_score).abs() < error);
+            assert!((score - orginal_score).abs() <= error);
         }
     }
 
     #[test]
     fn test_binary_dot_inverted() {
-        test_binary_dot_inverted_impl::<u8>();
-        test_binary_dot_inverted_impl::<u128>();
+        test_binary_dot_inverted_impl::<u8>(0);
+        test_binary_dot_inverted_impl::<u8>(1);
+        test_binary_dot_inverted_impl::<u8>(8);
+        test_binary_dot_inverted_impl::<u8>(33);
+        test_binary_dot_inverted_impl::<u8>(65);
+        test_binary_dot_inverted_impl::<u8>(3 * 129);
+        test_binary_dot_inverted_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_dot_inverted_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_dot_inverted_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -102,19 +110,23 @@ mod tests {
         for (index, vector) in vector_data.iter().enumerate() {
             let score = encoded.score_point(&query_u8, index as u32);
             let orginal_score = -dot_similarity(&query, vector);
-            assert!((score - orginal_score).abs() < error);
+            assert!((score - orginal_score).abs() <= error);
         }
     }
 
     #[test]
     fn test_binary_dot_internal() {
-        test_binary_dot_internal_impl::<u8>();
-        test_binary_dot_internal_impl::<u128>();
+        test_binary_dot_internal_impl::<u8>(0);
+        test_binary_dot_internal_impl::<u8>(1);
+        test_binary_dot_internal_impl::<u8>(8);
+        test_binary_dot_internal_impl::<u8>(33);
+        test_binary_dot_internal_impl::<u8>(65);
+        test_binary_dot_internal_impl::<u8>(3 * 129);
+        test_binary_dot_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_dot_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_dot_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -140,19 +152,23 @@ mod tests {
         for i in 1..vectors_count {
             let score = encoded.score_internal(0, i as u32);
             let orginal_score = dot_similarity(&vector_data[0], &vector_data[i]);
-            assert!((score - orginal_score).abs() < error);
+            assert!((score - orginal_score).abs() <= error);
         }
     }
 
     #[test]
     fn test_binary_dot_inverted_internal() {
-        test_binary_dot_inverted_internal_impl::<u8>();
-        test_binary_dot_inverted_internal_impl::<u128>();
+        test_binary_dot_inverted_internal_impl::<u8>(0);
+        test_binary_dot_inverted_internal_impl::<u8>(1);
+        test_binary_dot_inverted_internal_impl::<u8>(8);
+        test_binary_dot_inverted_internal_impl::<u8>(33);
+        test_binary_dot_inverted_internal_impl::<u8>(65);
+        test_binary_dot_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_dot_inverted_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_dot_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_dot_inverted_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
         let error = vector_dim as f32 * 0.01;
 
         //let mut rng = rand::thread_rng();
@@ -178,19 +194,23 @@ mod tests {
         for i in 1..vectors_count {
             let score = encoded.score_internal(0, i as u32);
             let orginal_score = -dot_similarity(&vector_data[0], &vector_data[i]);
-            assert!((score - orginal_score).abs() < error);
+            assert!((score - orginal_score).abs() <= error);
         }
     }
 
     #[test]
     fn test_binary_l1() {
-        test_binary_l1_impl::<u8>();
-        test_binary_l1_impl::<u128>();
+        test_binary_l1_impl::<u8>(0);
+        test_binary_l1_impl::<u8>(1);
+        test_binary_l1_impl::<u8>(8);
+        test_binary_l1_impl::<u8>(33);
+        test_binary_l1_impl::<u8>(65);
+        test_binary_l1_impl::<u8>(3 * 129);
+        test_binary_l1_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l1_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l1_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -240,13 +260,17 @@ mod tests {
 
     #[test]
     fn test_binary_l1_inverted() {
-        test_binary_l1_inverted_impl::<u8>();
-        test_binary_l1_inverted_impl::<u128>();
+        test_binary_l1_inverted_impl::<u8>(0);
+        test_binary_l1_inverted_impl::<u8>(1);
+        test_binary_l1_inverted_impl::<u8>(8);
+        test_binary_l1_inverted_impl::<u8>(33);
+        test_binary_l1_inverted_impl::<u8>(65);
+        test_binary_l1_inverted_impl::<u8>(3 * 129);
+        test_binary_l1_inverted_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l1_inverted_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l1_inverted_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -296,13 +320,17 @@ mod tests {
 
     #[test]
     fn test_binary_l1_internal() {
-        test_binary_l1_internal_impl::<u8>();
-        test_binary_l1_internal_impl::<u128>();
+        test_binary_l1_internal_impl::<u8>(0);
+        test_binary_l1_internal_impl::<u8>(1);
+        test_binary_l1_internal_impl::<u8>(8);
+        test_binary_l1_internal_impl::<u8>(33);
+        test_binary_l1_internal_impl::<u8>(65);
+        test_binary_l1_internal_impl::<u8>(3 * 129);
+        test_binary_l1_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l1_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l1_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -349,13 +377,17 @@ mod tests {
 
     #[test]
     fn test_binary_l1_inverted_internal() {
-        test_binary_l1_inverted_internal_impl::<u8>();
-        test_binary_l1_inverted_internal_impl::<u128>();
+        test_binary_l1_inverted_internal_impl::<u8>(0);
+        test_binary_l1_inverted_internal_impl::<u8>(1);
+        test_binary_l1_inverted_internal_impl::<u8>(8);
+        test_binary_l1_inverted_internal_impl::<u8>(33);
+        test_binary_l1_inverted_internal_impl::<u8>(65);
+        test_binary_l1_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_l1_inverted_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l1_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l1_inverted_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -402,13 +434,17 @@ mod tests {
 
     #[test]
     fn test_binary_l2() {
-        test_binary_l2_impl::<u8>();
-        test_binary_l2_impl::<u128>();
+        test_binary_l2_impl::<u8>(0);
+        test_binary_l2_impl::<u8>(1);
+        test_binary_l2_impl::<u8>(8);
+        test_binary_l2_impl::<u8>(33);
+        test_binary_l2_impl::<u8>(65);
+        test_binary_l2_impl::<u8>(3 * 129);
+        test_binary_l2_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l2_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l2_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -458,13 +494,17 @@ mod tests {
 
     #[test]
     fn test_binary_l2_inverted() {
-        test_binary_l2_inverted_impl::<u8>();
-        test_binary_l2_inverted_impl::<u128>();
+        test_binary_l2_inverted_impl::<u8>(0);
+        test_binary_l2_inverted_impl::<u8>(1);
+        test_binary_l2_inverted_impl::<u8>(8);
+        test_binary_l2_inverted_impl::<u8>(33);
+        test_binary_l2_inverted_impl::<u8>(65);
+        test_binary_l2_inverted_impl::<u8>(3 * 129);
+        test_binary_l2_inverted_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l2_inverted_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l2_inverted_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -514,13 +554,17 @@ mod tests {
 
     #[test]
     fn test_binary_l2_internal() {
-        test_binary_l2_internal_impl::<u8>();
-        test_binary_l2_internal_impl::<u128>();
+        test_binary_l2_internal_impl::<u8>(0);
+        test_binary_l2_internal_impl::<u8>(1);
+        test_binary_l2_internal_impl::<u8>(8);
+        test_binary_l2_internal_impl::<u8>(33);
+        test_binary_l2_internal_impl::<u8>(65);
+        test_binary_l2_internal_impl::<u8>(3 * 129);
+        test_binary_l2_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l2_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l2_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -567,13 +611,17 @@ mod tests {
 
     #[test]
     fn test_binary_l2_inverted_internal() {
-        test_binary_l2_inverted_internal_impl::<u8>();
-        test_binary_l2_inverted_internal_impl::<u128>();
+        test_binary_l2_inverted_internal_impl::<u8>(0);
+        test_binary_l2_inverted_internal_impl::<u8>(1);
+        test_binary_l2_inverted_internal_impl::<u8>(8);
+        test_binary_l2_inverted_internal_impl::<u8>(33);
+        test_binary_l2_inverted_internal_impl::<u8>(65);
+        test_binary_l2_inverted_internal_impl::<u8>(3 * 129);
+        test_binary_l2_inverted_internal_impl::<u128>(3 * 129);
     }
 
-    fn test_binary_l2_inverted_internal_impl<TBitsStoreType: BitsStoreType>() {
+    fn test_binary_l2_inverted_internal_impl<TBitsStoreType: BitsStoreType>(vector_dim: usize) {
         let vectors_count = 128;
-        let vector_dim = 3 * 129;
 
         //let mut rng = rand::thread_rng();
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
