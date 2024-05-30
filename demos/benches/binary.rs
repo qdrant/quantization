@@ -34,7 +34,7 @@ fn binary_bench(c: &mut Criterion) {
         vectors.push(vector);
     }
 
-    let encoded = EncodedVectorsBin::encode(
+    let encoded_u128 = EncodedVectorsBin::<u128, _>::encode(
         vectors.iter(),
         Vec::<u8>::new(),
         &VectorParameters {
@@ -48,13 +48,13 @@ fn binary_bench(c: &mut Criterion) {
     .unwrap();
 
     let query = generate_vector(vector_dim, &mut rng);
-    let encoded_query = encoded.encode_query(&query);
+    let encoded_query = encoded_u128.encode_query(&query);
 
-    group.bench_function("score binary linear access", |b| {
+    group.bench_function("score binary linear access u128", |b| {
         b.iter(|| {
             let mut _s = 0.0;
             for i in 0..vectors_count as u32 {
-                _s = encoded.score_point(&encoded_query, i);
+                _s = encoded_u128.score_point(&encoded_query, i);
             }
         });
     });
@@ -62,15 +62,53 @@ fn binary_bench(c: &mut Criterion) {
     let permutor = Permutor::new(vectors_count as u64);
     let permutation: Vec<u32> = permutor.map(|i| i as u32).collect();
 
-    group.bench_function("score binary random access", |b| {
+    group.bench_function("score binary random access u128", |b| {
         b.iter(|| {
             let mut _s = 0.0;
             for &i in &permutation {
-                _s = encoded.score_point(&encoded_query, i);
+                _s = encoded_u128.score_point(&encoded_query, i);
             }
         });
     });
 
+    let encoded_u8 = EncodedVectorsBin::<u8, _>::encode(
+        vectors.iter(),
+        Vec::<u8>::new(),
+        &VectorParameters {
+            dim: vector_dim,
+            count: vectors_count,
+            distance_type: DistanceType::Dot,
+            invert: false,
+        },
+        || false,
+    )
+    .unwrap();
+
+    let query = generate_vector(vector_dim, &mut rng);
+    let encoded_query = encoded_u8.encode_query(&query);
+
+    group.bench_function("score binary linear access u8", |b| {
+        b.iter(|| {
+            let mut _s = 0.0;
+            for i in 0..vectors_count as u32 {
+                _s = encoded_u8.score_point(&encoded_query, i);
+            }
+        });
+    });
+
+    let permutor = Permutor::new(vectors_count as u64);
+    let permutation: Vec<u32> = permutor.map(|i| i as u32).collect();
+
+    group.bench_function("score binary random access u8", |b| {
+        b.iter(|| {
+            let mut _s = 0.0;
+            for &i in &permutation {
+                _s = encoded_u8.score_point(&encoded_query, i);
+            }
+        });
+    });
+
+    #[cfg(target_arch = "x86_64")]
     group.bench_function("score DOT random access", |b| {
         b.iter(|| {
             let mut _s = 0.0;

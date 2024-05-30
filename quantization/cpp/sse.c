@@ -46,19 +46,61 @@ EXPORT float impl_score_dot_sse(
     return mul_scalar;
 }
 
-EXPORT uint64_t impl_xor_popcnt_sse(
-    const uint64_t* query_ptr,
-    const uint64_t* vector_ptr,
+EXPORT uint32_t impl_xor_popcnt_sse_uint128(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
     uint32_t count
 ) {
-    const int64_t* v_ptr = (const int64_t*)vector_ptr;
-    const int64_t* q_ptr = (const int64_t*)query_ptr;
     int64_t result = 0;
-    for (uint32_t _i = 0; _i < 2 * count; _i++) {
+    for (uint32_t _i = 0; _i < count; _i++) {
+        const uint64_t* v_ptr_1 = (const uint64_t*)vector_ptr;
+        const uint64_t* q_ptr_1 = (const uint64_t*)query_ptr;
+        uint64_t x_1 = (*v_ptr_1) ^ (*q_ptr_1);
+        result += _mm_popcnt_u64(x_1);
+
+        const uint64_t* v_ptr_2 = v_ptr_1 + 1;
+        const uint64_t* q_ptr_2 = q_ptr_1 + 1;
+        uint64_t x_2 = (*v_ptr_2) ^ (*q_ptr_2);
+        result += _mm_popcnt_u64(x_2);
+
+        vector_ptr += 16;
+        query_ptr += 16;
+    }
+    return (uint32_t)result;
+}
+
+EXPORT uint32_t impl_xor_popcnt_sse_uint64(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t count
+) {
+    int64_t result = 0;
+    for (uint32_t _i = 0; _i < count; _i++) {
+        const uint64_t* v_ptr = (const uint64_t*)vector_ptr;
+        const uint64_t* q_ptr = (const uint64_t*)query_ptr;
         uint64_t x = (*v_ptr) ^ (*q_ptr);
         result += _mm_popcnt_u64(x);
-        v_ptr++;
-        q_ptr++;
+
+        vector_ptr += 8;
+        query_ptr += 8;
+    }
+    return (uint32_t)result;
+}
+
+EXPORT uint32_t impl_xor_popcnt_sse_uint32(
+    const uint8_t* query_ptr,
+    const uint8_t* vector_ptr,
+    uint32_t count
+) {
+    int result = 0;
+    for (uint32_t _i = 0; _i < count; _i++) {
+        const uint32_t* v_ptr = (const uint32_t*)vector_ptr;
+        const uint32_t* q_ptr = (const uint32_t*)query_ptr;
+        uint32_t x = (*v_ptr) ^ (*q_ptr);
+        result += _mm_popcnt_u32(x);
+
+        vector_ptr += 4;
+        query_ptr += 4;
     }
     return (uint32_t)result;
 }

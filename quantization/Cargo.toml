@@ -23,6 +23,7 @@ permutation_iterator = "0.1.2"
 rand = "0.8.5"
 image = { version = "0.24.5", optional = true }
 rayon = "1.7.0"
+num-traits = "0.2.19"
 
 [dev-dependencies]
 num_threads = "0.1.6"
