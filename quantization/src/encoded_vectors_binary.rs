@@ -107,7 +107,7 @@ impl BitsStoreType for u8 {
             std::mem::size_of::<u8>()
         };
 
-        let bits_count = 8 * bytes_count;
+        let bits_count = u8::BITS as usize * bytes_count;
         let mut result = size / bits_count;
         if size % bits_count != 0 {
             result += 1;
@@ -194,7 +194,7 @@ impl<TBitsStoreType: BitsStoreType, TStorage: EncodedStorage>
         let mut encoded_vector =
             vec![Default::default(); TBitsStoreType::get_storage_size(vector.len())];
 
-        let bits_count = 8 * std::mem::size_of::<TBitsStoreType>();
+        let bits_count = u8::BITS as usize * std::mem::size_of::<TBitsStoreType>();
         let one = TBitsStoreType::one();
         for (i, &v) in vector.iter().enumerate() {
             // flag is true if the value is positive
