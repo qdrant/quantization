@@ -5,6 +5,7 @@ mod metrics;
 mod tests {
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
+        encoded_vectors_pq::CentroidsParameters,
         encoded_vectors_u8::EncodedVectorsU8,
         EncodedVectorsPQ,
     };
@@ -65,7 +66,7 @@ mod tests {
             vector_data.iter(),
             Vec::<u8>::new(),
             &vector_parameters,
-            2,
+            CentroidsParameters::KMeans { chunk_size: 2 },
             1,
             || false,
         )

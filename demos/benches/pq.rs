@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use quantization::encoded_vectors::{DistanceType, EncodedVectors, VectorParameters};
-use quantization::encoded_vectors_pq::EncodedVectorsPQ;
+use quantization::encoded_vectors_pq::{CentroidsParameters, EncodedVectorsPQ};
 use rand::Rng;
 
 #[cfg(target_arch = "x86_64")]
@@ -27,7 +27,7 @@ fn encode_bench(c: &mut Criterion) {
             distance_type: DistanceType::Dot,
             invert: false,
         },
-        2,
+        CentroidsParameters::KMeans { chunk_size: 2 },
         num_cpus::get(),
         || false,
     )

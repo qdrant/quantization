@@ -36,6 +36,11 @@ pub struct EncodedQueryPQ {
     lut: Vec<f32>,
 }
 
+pub enum CentroidsParameters {
+    KMeans { chunk_size: usize },
+    Custom { codebook: Vec<Vec<Vec<f32>>> },
+}
+
 #[derive(Serialize, Deserialize)]
 struct Metadata {
     centroids: Vec<Vec<f32>>,
@@ -50,31 +55,43 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
     /// * `data` - iterator over original vector data
     /// * `storage_builder` - encoding result storage builder
     /// * `vector_parameters` - parameters of original vector data (dimension, distance, ect)
-    /// * `chunk_size` - Max size of f32 chunk that replaced by centroid index (in original vector dimension)
+    /// * `centroid_parameters` - parameters of centroids (chunk size or custom centroids)
     /// * `max_threads` - Max allowed threads for kmeans and encodind process
     /// * `stop_condition` - Function that returns `true` if encoding should be stopped
     pub fn encode<'a>(
         data: impl Iterator<Item = impl AsRef<[f32]> + 'a> + Clone + Send,
         mut storage_builder: impl EncodedStorageBuilder<TStorage> + Send,
         vector_parameters: &VectorParameters,
-        chunk_size: usize,
+        centroid_parameters: CentroidsParameters,
         max_kmeans_threads: usize,
         stop_condition: impl Fn() -> bool + Sync,
     ) -> Result<Self, EncodingError> {
         debug_assert!(validate_vector_parameters(data.clone(), vector_parameters).is_ok());
 
         // first, divide vector into chunks
-        let vector_division = Self::get_vector_division(vector_parameters.dim, chunk_size);
+        let vector_division = match &centroid_parameters {
+            CentroidsParameters::KMeans { chunk_size } => {
+                Self::get_vector_division(vector_parameters.dim, *chunk_size)
+            }
+            CentroidsParameters::Custom { codebook } => {
+                Self::get_vector_division_from_codebook(codebook, vector_parameters.dim)?
+            }
+        };
 
         // then, find flattened centroid positions
-        let centroids = Self::find_centroids(
-            data.clone(),
-            &vector_division,
-            vector_parameters,
-            CENTROIDS_COUNT,
-            max_kmeans_threads,
-            &stop_condition,
-        )?;
+        let centroids = match centroid_parameters {
+            CentroidsParameters::KMeans { .. } => Self::find_centroids(
+                data.clone(),
+                &vector_division,
+                vector_parameters,
+                CENTROIDS_COUNT,
+                max_kmeans_threads,
+                &stop_condition,
+            )?,
+            CentroidsParameters::Custom { codebook } => {
+                Self::get_centroids_from_codebook(&codebook, vector_parameters.dim)?
+            }
+        };
 
         // finally, encode data
         #[allow(clippy::redundant_clone)]
@@ -108,9 +125,31 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
 
     pub fn get_quantized_vector_size(
         vector_parameters: &VectorParameters,
-        chunk_size: usize,
+        centroid_parameters: &CentroidsParameters,
     ) -> usize {
-        (0..vector_parameters.dim).step_by(chunk_size).count()
+        match centroid_parameters {
+            CentroidsParameters::KMeans { chunk_size } => {
+                (0..vector_parameters.dim).step_by(*chunk_size).count()
+            }
+            CentroidsParameters::Custom { codebook } => codebook.len(),
+        }
+    }
+
+    /// Get codebook. Converts internal centroid format into codebook format
+    pub fn get_codebook(&self) -> Vec<Vec<Vec<f32>>> {
+        let mut result = vec![];
+        for range in &self.metadata.vector_division {
+            let mut chunk_centroids = vec![];
+            for i in 0..self.metadata.centroids.len() {
+                chunk_centroids.push(self.metadata.centroids[i][range.clone()].to_owned());
+            }
+            result.push(chunk_centroids);
+        }
+        result
+    }
+
+    pub fn get_encoded_vectors(&self) -> &TStorage {
+        &self.encoded_vectors
     }
 
     fn get_vector_division(dim: usize, chunk_size: usize) -> Vec<Range<usize>> {
@@ -118,6 +157,52 @@ impl<TStorage: EncodedStorage> EncodedVectorsPQ<TStorage> {
             .step_by(chunk_size)
             .map(|i| i..std::cmp::min(i + chunk_size, dim))
             .collect()
+    }
+
+    fn get_vector_division_from_codebook(
+        codebook: &[Vec<Vec<f32>>],
+        dim: usize,
+    ) -> Result<Vec<Range<usize>>, EncodingError> {
+        let mut vector_division: Vec<Range<usize>> = vec![];
+        for chunk_centroids in codebook {
+            let chunk_size = chunk_centroids[0].len();
+            let start = vector_division.last().map(|x| x.end).unwrap_or(0);
+            let range = start..start + chunk_size;
+            vector_division.push(range);
+        }
+        if vector_division.last().map(|x| x.end).unwrap_or(0) == dim {
+            Ok(vector_division)
+        } else {
+            Err(EncodingError::ArgumentsError(format!(
+                "Codebook does not match vector dimension {}",
+                dim
+            )))
+        }
+    }
+
+    fn get_centroids_from_codebook(
+        codebook: &[Vec<Vec<f32>>],
+        dim: usize,
+    ) -> Result<Vec<Vec<f32>>, EncodingError> {
+        let centroids_count = codebook[0].len();
+        if centroids_count != 256 {
+            return Err(EncodingError::ArgumentsError(format!(
+                "Centroids count in codebook {} does not equal 256",
+                centroids_count
+            )));
+        }
+
+        let mut centroids = vec![];
+        for i in 0..centroids_count {
+            let mut centroid = vec![];
+            for chunk_centroids in codebook {
+                centroid.extend_from_slice(&chunk_centroids[i]);
+            }
+            assert_eq!(centroid.len(), dim);
+            centroids.push(centroid);
+        }
+
+        Ok(centroids)
     }
 
     /// Encode whole storage

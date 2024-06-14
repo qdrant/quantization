@@ -7,7 +7,7 @@ mod tests {
 
     use quantization::{
         encoded_vectors::{DistanceType, EncodedVectors, VectorParameters},
-        encoded_vectors_pq::EncodedVectorsPQ,
+        encoded_vectors_pq::{CentroidsParameters, EncodedVectorsPQ},
     };
     use rand::{Rng, SeedableRng};
 
@@ -35,7 +35,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -67,7 +67,7 @@ mod tests {
                 distance_type: DistanceType::L2,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -131,7 +131,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -163,7 +163,7 @@ mod tests {
                 distance_type: DistanceType::L2,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -226,7 +226,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: false,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -256,7 +256,7 @@ mod tests {
                 distance_type: DistanceType::Dot,
                 invert: true,
             },
-            1,
+            CentroidsParameters::KMeans { chunk_size: 1 },
             1,
             || false,
         )
@@ -267,6 +267,50 @@ mod tests {
             let orginal_score = -dot_similarity(&vector_data[0], &vector_data[i]);
             assert!((score - orginal_score).abs() < ERROR);
         }
+    }
+
+    #[test]
+    fn test_custom_centroids() {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let mut vector_data: Vec<Vec<_>> = vec![];
+        for _ in 0..VECTORS_COUNT {
+            vector_data.push((0..VECTOR_DIM).map(|_| rng.gen()).collect());
+        }
+
+        let encoded = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::Dot,
+                invert: true,
+            },
+            CentroidsParameters::KMeans { chunk_size: 1 },
+            1,
+            || false,
+        )
+        .unwrap();
+        let codebook = encoded.get_codebook();
+
+        let encoded_custom = EncodedVectorsPQ::encode(
+            vector_data.iter().map(Vec::as_slice),
+            vec![],
+            &VectorParameters {
+                dim: VECTOR_DIM,
+                count: VECTORS_COUNT,
+                distance_type: DistanceType::Dot,
+                invert: true,
+            },
+            CentroidsParameters::Custom { codebook },
+            1,
+            || false,
+        )
+        .unwrap();
+
+        let data_orig = encoded.get_encoded_vectors().to_owned();
+        let data_custom = encoded_custom.get_encoded_vectors().to_owned();
+        assert_eq!(data_orig, data_custom);
     }
 
     // ignore this test because it requires long time
@@ -307,7 +351,7 @@ mod tests {
                         distance_type: DistanceType::Dot,
                         invert: false,
                     },
-                    1,
+                    CentroidsParameters::KMeans { chunk_size: 1 },
                     5,
                     || false,
                 )
